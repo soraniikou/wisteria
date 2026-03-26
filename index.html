@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>藤の呪縛</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;700&family=Shippori+Mincho:wght@400;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --wisteria-light: #c9a8e8;
+    --wisteria-mid: #7b4fa6;
+    --wisteria-dark: #2a0a3d;
+    --madness: #1a0025;
+    --blood: #4a0020;
+    --cream: #fdf6ee;
+    --floral: #f5c6d8;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    font-family: 'Shippori Mincho', 'Noto Serif JP', serif;
+    background: #0a0010;
+    color: white;
+    cursor: pointer;
+  }
+
+  #stage {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: background 2s ease;
+    z-index: 1;
+  }
+
+  canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+  }
+
+  #overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 6;
+    pointer-events: none;
+    background: transparent;
+    transition: background 3s ease;
+  }
+
+  /* pulse overlay for stage 2 */
+  #pulse {
+    position: fixed;
+    inset: 0;
+    z-index: 7;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(ellipse at center, rgba(80,0,40,0.6) 0%, transparent 70%);
+    animation: none;
+  }
+
+  @keyframes heartbeat {
+    0%,100% { opacity: 0; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.05); }
+  }
+
+  .content {
+    position: relative;
+    z-index: 20;
+    text-align: center;
+    padding: 2rem;
+    max-width: 480px;
+    width: 90%;
+  }
+
+  .stage-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    opacity: 0.5;
+    margin-bottom: 2rem;
+    text-transform: uppercase;
+  }
+
+  .main-text {
+    font-size: clamp(1.2rem, 4vw, 1.7rem);
+    line-height: 2.2;
+    font-weight: 300;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 1.5s ease, transform 1.5s ease;
+    letter-spacing: 0.1em;
+  }
+
+  .main-text.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .sub-text {
+    font-size: 0.85rem;
+    opacity: 0;
+    margin-top: 3rem;
+    letter-spacing: 0.2em;
+    color: rgba(255,255,255,0.5);
+    transition: opacity 2s ease 1s;
+  }
+
+  .sub-text.visible { opacity: 1; }
+
+  /* Stage 1 - 恋に酔う */
+  .s1 { background: linear-gradient(160deg, #1a0830 0%, #3d1a5c 40%, #1a0830 100%); }
+
+  /* Stage 2 - 狂気 */
+  .s2 { background: linear-gradient(160deg, #0a0010 0%, #1a0025 50%, #2a0015 100%); }
+
+  /* Stage 3 - 岐路 */
+  .s3 { background: #050008; }
+
+  /* Stage 4 - 真実 */
+  .s4 { background: #000000; }
+
+  /* Stage 5 - 再生 */
+  .s5 { background: linear-gradient(160deg, #0f0820 0%, #1a0d30 50%, #0f0820 100%); }
+
+  /* Choice buttons */
+  .choices {
+    display: none;
+    gap: 1.5rem;
+    margin-top: 3rem;
+    flex-direction: column;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 2s ease 2s;
+  }
+
+  .choices.visible { opacity: 1; }
+  .choices.show { display: flex; }
+
+  .choice-btn {
+    padding: 0.9rem 2.5rem;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: transparent;
+    color: white;
+    font-family: 'Shippori Mincho', serif;
+    font-size: 1rem;
+    letter-spacing: 0.25em;
+    cursor: pointer;
+    transition: all 0.4s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .choice-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.05);
+    transform: scaleX(0);
+    transition: transform 0.4s ease;
+    transform-origin: left;
+  }
+
+  .choice-btn:hover::before { transform: scaleX(1); }
+  .choice-btn:hover { border-color: var(--wisteria-light); letter-spacing: 0.35em; }
+
+  .choice-stay { border-color: rgba(120, 60, 180, 0.6); }
+  .choice-leave { border-color: rgba(180, 60, 80, 0.4); }
+
+  /* Floral particles */
+  .petal {
+    position: fixed;
+    pointer-events: none;
+    z-index: 5;
+    width: 8px; height: 8px;
+    border-radius: 50% 0 50% 0;
+    opacity: 0;
+    animation: fall linear forwards;
+  }
+
+  @keyframes fall {
+    0% { opacity: 0.8; transform: translateY(0) rotate(0deg) scale(1); }
+    100% { opacity: 0; transform: translateY(60vh) rotate(720deg) scale(0.3); }
+  }
+
+  /* Stage 4 truth message */
+  .truth-box {
+    border-left: 2px solid rgba(150, 80, 200, 0.4);
+    padding: 1.5rem 1.5rem;
+    text-align: left;
+    line-height: 2.4;
+    font-size: clamp(0.9rem, 3vw, 1.1rem);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 2s ease, transform 2s ease;
+  }
+
+  .truth-box.visible { opacity: 1; transform: translateY(0); }
+
+  .truth-box em {
+    font-style: normal;
+    color: var(--wisteria-light);
+  }
+
+  /* Stage 5 main text accents */
+  .s5 .main-text { padding-top: 0.25rem; }
+  .s5-text-pink {
+    color: #f0a8d0;
+    display: inline-block;
+    margin-top: 2.75rem;
+  }
+
+  .s5-rotating-msg {
+    margin-top: 1.75rem;
+    font-size: clamp(0.82rem, 3.1vw, 0.98rem);
+    line-height: 2;
+    letter-spacing: 0.06em;
+    font-weight: 400;
+    min-height: 4em;
+    max-width: 22em;
+    margin-left: auto;
+    margin-right: auto;
+    opacity: 0;
+    transition: opacity 1.2s ease, color 0.85s ease;
+  }
+  .s5-rotating-msg.visible { opacity: 1; }
+
+  /* Screen shake */
+  @keyframes shake {
+    0%,100% { transform: translate(0,0) rotate(0deg); }
+    10% { transform: translate(-3px, 2px) rotate(-0.5deg); }
+    20% { transform: translate(3px, -2px) rotate(0.5deg); }
+    30% { transform: translate(-2px, 3px) rotate(-0.3deg); }
+    50% { transform: translate(2px, -1px) rotate(0.3deg); }
+    70% { transform: translate(-1px, 2px) rotate(-0.2deg); }
+  }
+
+  .shake { animation: shake 0.6s ease; }
+
+  /* Tap hint */
+  .tap-hint {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    opacity: 0.3;
+    z-index: 25;
+    animation: blink 2s ease infinite;
+  }
+
+  @keyframes blink {
+    0%,100% { opacity: 0.3; }
+    50% { opacity: 0.6; }
+  }
+
+  /* Progress dots */
+  .dots {
+    position: fixed;
+    bottom: 3.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.6rem;
+    z-index: 25;
+  }
+
+  .dot {
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    transition: background 0.5s, transform 0.5s;
+  }
+
+  .dot.active {
+    background: var(--wisteria-light);
+    transform: scale(1.5);
+  }
+
+  /* Vignette */
+  #vignette {
+    position: fixed;
+    inset: 0;
+    z-index: 8;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.7) 100%);
+  }
+
+  /* Glitch text effect for stage 2 */
+  @keyframes glitch {
+    0%,100% { clip-path: inset(0 0 100% 0); transform: skewX(0deg); }
+    5% { clip-path: inset(20% 0 60% 0); transform: skewX(-5deg); }
+    10% { clip-path: inset(50% 0 30% 0); transform: skewX(3deg); }
+    15% { clip-path: inset(10% 0 80% 0); transform: skewX(-2deg); }
+    20%,100% { clip-path: inset(0 0 100% 0); }
+  }
+
+  .glitch-wrap { position: relative; }
+  .glitch-wrap::before, .glitch-wrap::after {
+    content: attr(data-text);
+    position: absolute;
+    left: 0; top: 0; width: 100%;
+    opacity: 0.4;
+  }
+  .glitch-wrap::before {
+    color: #ff006a;
+    animation: glitch 3s infinite;
+    text-shadow: 2px 0 #ff006a;
+  }
+  .glitch-wrap::after {
+    color: #00ffff;
+    animation: glitch 3s infinite 0.15s;
+    text-shadow: -2px 0 #00ffff;
+    transform: skewX(2deg);
+  }
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+<div id="overlay"></div>
+<div id="pulse"></div>
+<div id="vignette"></div>
+
+<div id="stage" class="s1">
+  <div class="content">
+    <div class="stage-label" id="stageLabel">Stage 1 — 恋に酔う</div>
+    <div class="main-text" id="mainText"></div>
+    <div class="truth-box" id="truthBox"></div>
+    <div class="choices show" id="choices">
+      <button class="choice-btn choice-stay" onclick="choose('stay')">愛し続ける</button>
+      <button class="choice-btn choice-leave" onclick="choose('leave')">離れる</button>
+    </div>
+    <div class="sub-text" id="subText"></div>
+  </div>
+</div>
+
+<div class="dots">
+  <div class="dot active" id="d0"></div>
+  <div class="dot" id="d1"></div>
+  <div class="dot" id="d2"></div>
+  <div class="dot" id="d3"></div>
+  <div class="dot" id="d4"></div>
+</div>
+
+<div class="tap-hint" id="tapHint">— tap —</div>
+
+<script>
+// ─── Audio Engine ───────────────────────────────
+let AC = null;
+let masterGain = null;
+let audioReady = false;
+const MASTER_GAIN_BASE = 0.45;
+const STAGE5_BGM_GAIN_MULT = 0.6;
+
+function masterGainMultiplierForStage(stageIndex) {
+  return stageIndex === 4 ? STAGE5_BGM_GAIN_MULT : 1;
+}
+
+function applyMasterGainForStage(stageIndex) {
+  if (!masterGain) return;
+  masterGain.gain.value = MASTER_GAIN_BASE * masterGainMultiplierForStage(stageIndex);
+}
+
+function initAudio() {
+  if (audioReady) return;
+  try {
+    AC = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = AC.createGain();
+    masterGain.gain.value = MASTER_GAIN_BASE * masterGainMultiplierForStage(currentStage);
+    masterGain.connect(AC.destination);
+    audioReady = true;
+  } catch(e) {
+    console.warn('Audio init failed:', e);
+  }
+}
+
+function resumeAudio(cb) {
+  if (!audioReady) initAudio();
+  if (!AC || !masterGain) { if(cb) cb(); return; }
+  if (AC.state === 'suspended') {
+    AC.resume().then(() => { if(cb) cb(); });
+  } else {
+    if(cb) cb();
+  }
+}
+
+function playTone(freq, type='sine', dur=1.5, vol=0.12, delay=0) {
+  if (!audioReady || !masterGain) return;
+  try {
+    const osc = AC.createOscillator();
+    const g = AC.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, AC.currentTime);
+    const t0 = AC.currentTime + delay;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + 0.1);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g);
+    g.connect(masterGain);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.15);
+  } catch(e) { console.warn('playTone error:', e); }
+}
+
+function playChord(freqs, type='sine', dur=2, vol=0.08) {
+  freqs.forEach((f,i) => playTone(f, type, dur, vol, i*0.05));
+}
+
+function playWisteriaDrone() {
+  if (!audioReady || !masterGain) return;
+  [130.81, 164.81, 196, 261.63].forEach((f, idx) => {
+    try {
+      const osc = AC.createOscillator();
+      const g = AC.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, AC.currentTime);
+      const t0 = AC.currentTime + idx * 0.1;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.linearRampToValueAtTime(0.055, t0 + 2);
+      g.gain.setValueAtTime(0.055, t0 + 6);
+      g.gain.linearRampToValueAtTime(0.0001, t0 + 8);
+      osc.connect(g);
+      g.connect(masterGain);
+      osc.start(t0);
+      osc.stop(t0 + 9);
+    } catch(e) { console.warn(e); }
+  });
+}
+
+function playMadnessDrone() {
+  if (!audioReady || !masterGain) return;
+  [55, 58.27, 65.41].forEach((f, i) => {
+    try {
+      const osc = AC.createOscillator();
+      const g = AC.createGain();
+      osc.type = i === 0 ? 'sawtooth' : 'square';
+      osc.frequency.setValueAtTime(f, AC.currentTime);
+      const t0 = AC.currentTime;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.linearRampToValueAtTime(0.07, t0 + 1);
+      g.gain.setValueAtTime(0.07, t0 + 5);
+      g.gain.linearRampToValueAtTime(0.0001, t0 + 7);
+      osc.connect(g);
+      g.connect(masterGain);
+      osc.start(t0);
+      osc.stop(t0 + 8);
+    } catch(e) { console.warn(e); }
+  });
+  playTone(880, 'sawtooth', 4, 0.025);
+}
+
+function playWindChime() {
+  const freqs = [523.25, 659.25, 783.99, 1046.5, 1318.5];
+  freqs.forEach((f,i) => playTone(f, 'sine', 3, 0.08, i * 0.3 + Math.random()*0.2));
+}
+
+function playFloralBurst() {
+  [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98].forEach((f,i) => {
+    playTone(f, 'sine', 2.5, 0.07, i * 0.15);
+  });
+}
+
+// ─── Canvas / Visual Engine ──────────────────────
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, currentStage = 0, animId, particles = [], vines = [], flowers = [];
+let choice = null;
+let stage5ThemeT0 = 0;
+let lastStage5ThemeIdx = -1;
+let stage5ThemeStroke = [55, 155, 92];
+/* index.html と同じフォルダに配置（mp3 / m4a / ogg 等。拡張子は下の定数に合わせる） */
+const STAGE5_VOICE_SRC = 'stage5-voice.mp3';
+let stage5VoiceAudio = null;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Wisteria flower cluster
+class FloralParticle {
+  constructor(x, y, color) {
+    this.x = x; this.y = y;
+    this.vx = (Math.random()-0.5)*3;
+    this.vy = -Math.random()*4 - 1;
+    this.life = 1;
+    this.decay = 0.008 + Math.random()*0.012;
+    this.size = 2 + Math.random()*5;
+    this.color = color;
+    this.rot = Math.random()*Math.PI*2;
+    this.rotV = (Math.random()-0.5)*0.1;
+  }
+  update() {
+    this.x += this.vx; this.y += this.vy;
+    this.vy += 0.05;
+    this.vx *= 0.99;
+    this.life -= this.decay;
+    this.rot += this.rotV;
+  }
+  draw() {
+    ctx.save();
+    ctx.globalAlpha = this.life;
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rot);
+    ctx.beginPath();
+    // petal shape
+    ctx.ellipse(0, 0, this.size, this.size*0.5, 0, 0, Math.PI*2);
+    ctx.fillStyle = this.color;
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// Vine class
+class Vine {
+  constructor(startX, startY) {
+    this.points = [{x:startX, y:startY}];
+    this.dirX = (Math.random()-0.5)*2;
+    this.dirY = -Math.random()*1.5 - 0.5;
+    this.life = 1;
+    this.maxLen = 80 + Math.random()*120;
+    this.width = 1 + Math.random()*2;
+    this.age = 0;
+    this.wiggle = Math.random()*100;
+    this.growing = true;
+    this.madness = false;
+    // madness extras
+    this.pulsePhase = Math.random()*Math.PI*2;
+    this.children = []; // branch vines
+    this.branchSpawned = false;
+    this.thorns = [];
+    this.speed = 1; // points per frame
+    this.rebirthStem = false;
+    this.rebirthHeartStem = false;
+    this.rebirthT0 = 0;
+    this.rebirthDuration = 20000;
+    this.morphPhase = 'emerge';
+    this.morphFrom = null;
+    this.morphTo = null;
+    this.heartEmergeReady = false;
+    this.stemX = 0;
+    this.stemEndY = 0;
+    this.heartCx = 0;
+    this.heartCy = 0;
+    this.heartScale = 1;
+    this.heartTBottom = 0;
+  }
+  update() {
+    this.age++;
+    if (this.rebirthStem && this.rebirthHeartStem) {
+      const now = performance.now();
+      const elapsed = now - this.rebirthT0;
+      const t = Math.min(1, elapsed / this.rebirthDuration);
+      const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      if (!this.heartEmergeReady) {
+        this.morphFrom = buildStraightPolyline(this.stemX, H + 10, this.stemEndY, this.maxLen);
+        this.morphTo = buildHeartOutline(
+          this.heartCx, this.heartCy, this.heartScale, this.heartTBottom, this.maxLen
+        );
+        this.heartEmergeReady = true;
+      }
+      this.points = [];
+      for (let i = 0; i < this.morphFrom.length; i++) {
+        this.points.push({
+          x: this.morphFrom[i].x + (this.morphTo[i].x - this.morphFrom[i].x) * e,
+          y: this.morphFrom[i].y + (this.morphTo[i].y - this.morphFrom[i].y) * e
+        });
+      }
+      this.morphPhase = t >= 1 ? 'done' : 'emerge';
+      if (t >= 1) this.growing = false;
+      this.children.forEach(c => c.update());
+      return;
+    }
+    // madness vines grow faster over time
+    const steps = this.madness ? Math.ceil(this.speed) : 1;
+    for (let s = 0; s < steps; s++) {
+      if (this.growing && this.points.length < this.maxLen) {
+        const last = this.points[this.points.length-1];
+        const noise = Math.sin(this.age*0.15 + this.wiggle)*1.5;
+        let nx = last.x + this.dirX + noise;
+        let ny = last.y + this.dirY;
+        if (this.madness) {
+          // erratic lurch
+          nx += (Math.random()-0.5)*6;
+          ny += (Math.random()-0.5)*5;
+          // curve toward center, then overshoot
+          const cx = W/2, cy = H/2;
+          nx += (cx - last.x) * 0.004;
+          ny += (cy - last.y) * 0.004;
+          // accelerate as it grows
+          this.speed = 1 + (this.points.length / this.maxLen) * 2.5;
+          // random direction shifts
+          if (Math.random() < 0.04) {
+            this.dirX += (Math.random()-0.5)*1.5;
+            this.dirY += (Math.random()-0.5)*1.5;
+          }
+          // spawn thorns
+          if (Math.random() < 0.06) {
+            this.thorns.push({
+              idx: this.points.length,
+              angle: Math.random()*Math.PI*2,
+              len: 6 + Math.random()*12
+            });
+          }
+        }
+        this.points.push({x:nx, y:ny});
+      } else {
+        this.growing = false;
+      }
+    }
+    // spawn branches mid-growth
+    if (this.madness && !this.branchSpawned && this.points.length > this.maxLen * 0.4) {
+      this.branchSpawned = true;
+      const branchCount = 2 + Math.floor(Math.random()*3);
+      for (let b = 0; b < branchCount; b++) {
+        const srcIdx = Math.floor(this.points.length * (0.3 + Math.random()*0.5));
+        const src = this.points[Math.min(srcIdx, this.points.length-1)];
+        const child = new Vine(src.x, src.y);
+        child.madness = true;
+        child.maxLen = 40 + Math.random()*80;
+        child.width = this.width * 0.55;
+        child.dirX = (Math.random()-0.5)*4;
+        child.dirY = (Math.random()-0.5)*4;
+        child.speed = this.speed * 0.8;
+        child.branchSpawned = true; // no grandchildren
+        this.children.push(child);
+      }
+    }
+    this.children.forEach(c => c.update());
+  }
+  draw() {
+    this._drawSelf();
+    this.children.forEach(c => c._drawSelf());
+  }
+  _drawSelf() {
+    if (this.points.length < 2) return;
+    const pulse = this.madness
+      ? 0.5 + 0.5 * Math.sin(Date.now()*0.003 + this.pulsePhase)
+      : 1;
+
+    if (this.rebirthStem && this.rebirthHeartStem) {
+      const now = performance.now();
+      let r, gCol, b, alpha;
+      if (this.morphPhase === 'done') {
+        [r, gCol, b] = stage5ThemeStroke;
+        alpha = 0.58;
+      } else {
+        const colorT = Math.min(1, (now - this.rebirthT0) / this.rebirthDuration);
+        const pr = 130, pg = 65, pb = 195;
+        const gr = 55, gg = 155, gb = 92;
+        r = Math.round(pr + (gr - pr) * colorT);
+        gCol = Math.round(pg + (gg - pg) * colorT);
+        b = Math.round(pb + (gb - pb) * colorT);
+        alpha = 0.42 + 0.18 * colorT;
+      }
+      ctx.beginPath();
+      ctx.moveTo(this.points[0].x, this.points[0].y);
+      for (let i = 1; i < this.points.length; i++) ctx.lineTo(this.points[i].x, this.points[i].y);
+      ctx.strokeStyle = `rgba(${r},${gCol},${b},${alpha * 0.32})`;
+      ctx.lineWidth = this.width * 5;
+      ctx.shadowColor = `rgb(${r},${gCol},${b})`;
+      ctx.shadowBlur = 14;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.beginPath();
+      ctx.moveTo(this.points[0].x, this.points[0].y);
+      for (let i = 1; i < this.points.length; i++) ctx.lineTo(this.points[i].x, this.points[i].y);
+      ctx.strokeStyle = `rgba(${r},${gCol},${b},${alpha})`;
+      ctx.lineWidth = this.width * 1.15;
+      ctx.stroke();
+      return;
+    }
+
+    // glow pass for madness
+    if (this.madness) {
+      ctx.beginPath();
+      ctx.moveTo(this.points[0].x, this.points[0].y);
+      for (let i = 1; i < this.points.length; i++) {
+        const p = this.points[i];
+        ctx.lineTo(p.x, p.y);
+      }
+      ctx.strokeStyle = `rgba(120,0,60,${0.15 * pulse})`;
+      ctx.lineWidth = this.width * 5;
+      ctx.shadowColor = '#600030';
+      ctx.shadowBlur = 12;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    // main vine
+    ctx.beginPath();
+    ctx.moveTo(this.points[0].x, this.points[0].y);
+    for (let i = 1; i < this.points.length; i++) {
+      ctx.lineTo(this.points[i].x, this.points[i].y);
+    }
+    const alpha = this.madness ? 0.55 + 0.3*pulse : 0.5;
+    ctx.strokeStyle = this.madness
+      ? `rgba(${40+Math.floor(30*pulse)},0,${50+Math.floor(40*pulse)},${alpha})`
+      : `rgba(120,60,180,0.5)`;
+    ctx.lineWidth = this.madness ? this.width * (1 + 0.4*pulse) : this.width;
+    ctx.stroke();
+
+    // thorns
+    if (this.madness && this.thorns.length) {
+      this.thorns.forEach(t => {
+        const p = this.points[Math.min(t.idx, this.points.length-1)];
+        if (!p) return;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(
+          p.x + Math.cos(t.angle) * t.len,
+          p.y + Math.sin(t.angle) * t.len
+        );
+        ctx.strokeStyle = `rgba(80,0,40,0.7)`;
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      });
+    }
+
+    // flower tip (non-madness)
+    if (!this.growing && !this.madness) {
+      const tip = this.points[this.points.length-1];
+      ctx.beginPath();
+      ctx.arc(tip.x, tip.y, 2, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(200,160,240,0.8)`;
+      ctx.fill();
+    }
+    // madness tip: dripping dark bead
+    if (!this.growing && this.madness) {
+      const tip = this.points[this.points.length-1];
+      ctx.beginPath();
+      ctx.arc(tip.x, tip.y, 3 + 2*pulse, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(60,0,30,0.9)`;
+      ctx.fill();
+    }
+  }
+}
+
+function heartShapeCanvas(t, cx, cy, scale) {
+  const sx = 16 * Math.pow(Math.sin(t), 3);
+  const rawY = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+  /* cy - rawY: ♡ の向き（上に二つの丸、下にとんがり）でテキストを包む */
+  return { x: cx + scale * sx, y: cy - scale * rawY };
+}
+
+function findHeartBottomT(cx, cy, scale) {
+  let tBottom = 0;
+  let maxY = -Infinity;
+  for (let t = 0; t < Math.PI * 2; t += 0.025) {
+    const p = heartShapeCanvas(t, cx, cy, scale);
+    if (p.y > maxY) {
+      maxY = p.y;
+      tBottom = t;
+    }
+  }
+  return tBottom;
+}
+
+function buildHeartOutline(cx, cy, scale, tBottom, n) {
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const theta = tBottom + (i / n) * Math.PI * 2;
+    pts.push(heartShapeCanvas(theta, cx, cy, scale));
+  }
+  return pts;
+}
+
+function buildStraightPolyline(stemX, y0, y1, n) {
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const fr = i / Math.max(1, n - 1);
+    pts.push({ x: stemX, y: y0 + fr * (y1 - y0) });
+  }
+  return pts;
+}
+
+const STAGE5_MESSAGES = [
+  'あなたがあなた自身をめでるように',
+  '嘘をついても　花のように美しい',
+  '応えてくれる人、それはあなた',
+  'あなたは、まだ枯れてない',
+  '乾いても、また咲かせられる',
+  'あなたの人生に彩りを'
+];
+
+const STAGE5_THEMES = [
+  {
+    fillCenter: 'rgba(210,248,220,0.42)',
+    fillMid: 'rgba(150,220,175,0.22)',
+    fillEdge: 'rgba(90,180,130,0.06)',
+    stroke: [62, 175, 105],
+    textColor: '#b8e8c8'
+  },
+  {
+    fillCenter: 'rgba(235,252,210,0.44)',
+    fillMid: 'rgba(190,235,150,0.22)',
+    fillEdge: 'rgba(140,200,100,0.07)',
+    stroke: [130, 185, 75],
+    textColor: '#d4e8b0'
+  },
+  {
+    fillCenter: 'rgba(200,220,255,0.42)',
+    fillMid: 'rgba(140,175,245,0.2)',
+    fillEdge: 'rgba(90,130,210,0.08)',
+    stroke: [95, 145, 230],
+    textColor: '#b8c8f5'
+  },
+  {
+    fillCenter: 'rgba(200,245,255,0.46)',
+    fillMid: 'rgba(130,225,245,0.22)',
+    fillEdge: 'rgba(80,195,220,0.08)',
+    stroke: [75, 200, 220],
+    textColor: '#a8e8f2'
+  },
+  {
+    fillCenter: 'rgba(255,252,210,0.46)',
+    fillMid: 'rgba(245,230,150,0.24)',
+    fillEdge: 'rgba(220,200,100,0.1)',
+    stroke: [230, 205, 85],
+    textColor: '#f0e8a8'
+  },
+  {
+    fillCenter: 'rgba(255,225,238,0.46)',
+    fillMid: 'rgba(250,195,215,0.24)',
+    fillEdge: 'rgba(230,160,190,0.1)',
+    stroke: [230, 150, 185],
+    textColor: '#f5c8dc'
+  }
+];
+
+function drawStage5HeartFill(points, cx, cy, scale, themeIdx, opacityMult = 1) {
+  if (!points || points.length < 3) return;
+  const th = STAGE5_THEMES[themeIdx % STAGE5_THEMES.length];
+  let maxR = scale * 16;
+  for (let i = 0; i < points.length; i++) {
+    const dx = points[i].x - cx;
+    const dy = points[i].y - cy;
+    maxR = Math.max(maxR, Math.hypot(dx, dy));
+  }
+  maxR *= 1.08;
+  const g = ctx.createRadialGradient(cx, cy, maxR * 0.08, cx, cy, maxR);
+  g.addColorStop(0, th.fillCenter);
+  g.addColorStop(0.5, th.fillMid);
+  g.addColorStop(1, th.fillEdge);
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+  ctx.closePath();
+  ctx.fillStyle = g;
+  ctx.save();
+  ctx.globalAlpha = opacityMult;
+  ctx.fill();
+  ctx.restore();
+}
+
+function ensureStage5VoiceAudio() {
+  if (stage5VoiceAudio) return;
+  stage5VoiceAudio = new Audio(STAGE5_VOICE_SRC);
+  stage5VoiceAudio.preload = 'auto';
+  stage5VoiceAudio.addEventListener('ended', () => {
+    if (currentStage !== 4) return;
+    stage5VoiceAudio.currentTime = 0;
+    stage5VoiceAudio.play().catch(() => {});
+  });
+}
+
+function stopStage5Voice() {
+  if (!stage5VoiceAudio) return;
+  stage5VoiceAudio.pause();
+  stage5VoiceAudio.currentTime = 0;
+}
+
+function syncStage5Voice(idx) {
+  ensureStage5VoiceAudio();
+  if (idx !== 0) return;
+  if (stage5VoiceAudio.paused || stage5VoiceAudio.ended) {
+    stage5VoiceAudio.currentTime = 0;
+    stage5VoiceAudio.play().catch(() => {});
+  }
+}
+
+function updateStage5RotatingMessage(idx) {
+  if (idx === lastStage5ThemeIdx) return;
+  lastStage5ThemeIdx = idx;
+  const el = document.getElementById('s5RotatingMsg');
+  if (!el) return;
+  const th = STAGE5_THEMES[idx % STAGE5_THEMES.length];
+  el.textContent = STAGE5_MESSAGES[idx % STAGE5_MESSAGES.length];
+  el.style.color = th.textColor;
+  el.classList.add('visible');
+  syncStage5Voice(idx);
+}
+
+// ─── Stage Data ───────────────────────────────────
+const stages = [
+  {
+    id: 1,
+    label: 'Stage 1 — 恋に酔う',
+    bg: 's1',
+    text: '藤の花が\nこんなに美しいのは\n毒を宿しているからかもしれない',
+    sub: '— tap to fall deeper —',
+    audio: () => { playWisteriaDrone(); playChord([261.63, 329.63, 392], 'sine', 3, 0.08); },
+    init: initStage1
+  },
+  {
+    id: 2,
+    label: 'Stage 2 — 狂気・愛憎',
+    bg: 's2',
+    text: 'あなたが好きすぎて\n世界が腐り始めた',
+    sub: null,
+    audio: playMadnessDrone,
+    init: initStage2
+  },
+  {
+    id: 3,
+    label: 'Stage 3 — 岐路・選択',
+    bg: 's3',
+    text: 'あなたはどちらを選ぶ',
+    sub: null,
+    audio: () => playTone(110, 'sine', 8, 0.05),
+    init: initStage3
+  },
+  {
+    id: 4,
+    label: 'Stage 4 — 中毒・真実',
+    bg: 's4',
+    text: null,
+    truth: `絞め殺そうとしたのは\nあなたではなく\n<em>あなたの中に見ていた\n私自身だったのかもしれない</em>`,
+    sub: null,
+    audio: () => { playTone(65.41, 'sine', 6, 0.06); playTone(130.81, 'sine', 6, 0.04, 1); },
+    init: initStage4
+  },
+  {
+    id: 5,
+    label: 'Stage 5 — 自己愛・再生',
+    bg: 's5',
+    text: 'あなたは\nあなた自身を\n愛でることを\n覚えていった',
+    sub: null,
+    audio: () => { playFloralBurst(); playWindChime(); },
+    init: initStage5
+  }
+];
+
+// ─── Stage Initializers ───────────────────────────
+function initStage1() {
+  vines = [];
+  particles = [];
+  // Spawn gentle wisteria vines from bottom
+  for (let i = 0; i < 8; i++) {
+    setTimeout(() => {
+      const v = new Vine(Math.random()*W, H);
+      vines.push(v);
+    }, i * 400);
+  }
+}
+
+function initStage2() {
+  vines = [];
+  particles = [];
+
+  // Wave 1: immediate burst from all 4 edges
+  for (let i = 0; i < 12; i++) {
+    const side = i % 4;
+    let x, y;
+    if (side===0) { x=Math.random()*W; y=0; }
+    else if (side===1) { x=W; y=Math.random()*H; }
+    else if (side===2) { x=Math.random()*W; y=H; }
+    else { x=0; y=Math.random()*H; }
+    const v = new Vine(x, y);
+    v.madness = true;
+    v.maxLen = 120 + Math.random()*180;
+    v.width = 1.5 + Math.random()*3;
+    v.dirX = (W/2 - x) * 0.012 + (Math.random()-0.5)*3;
+    v.dirY = (H/2 - y) * 0.012 + (Math.random()-0.5)*3;
+    vines.push(v);
+  }
+
+  // Wave 2: corners burst (delayed)
+  const corners = [[0,0],[W,0],[0,H],[W,H]];
+  corners.forEach((c, i) => {
+    setTimeout(() => {
+      if (currentStage !== 1) return;
+      for (let j = 0; j < 4; j++) {
+        const v = new Vine(c[0] + (Math.random()-0.5)*60, c[1] + (Math.random()-0.5)*60);
+        v.madness = true;
+        v.maxLen = 150 + Math.random()*200;
+        v.width = 2 + Math.random()*3.5;
+        v.dirX = (W/2 - c[0]) * 0.015 + (Math.random()-0.5)*4;
+        v.dirY = (H/2 - c[1]) * 0.015 + (Math.random()-0.5)*4;
+        vines.push(v);
+      }
+    }, 600 + i * 250);
+  });
+
+  // Wave 3: center explosion (delayed more)
+  setTimeout(() => {
+    if (currentStage !== 1) return;
+    for (let i = 0; i < 10; i++) {
+      const angle = (i / 10) * Math.PI * 2;
+      const r = 30 + Math.random()*50;
+      const v = new Vine(W/2 + Math.cos(angle)*r, H/2 + Math.sin(angle)*r);
+      v.madness = true;
+      v.maxLen = 100 + Math.random()*160;
+      v.width = 1 + Math.random()*2.5;
+      v.dirX = Math.cos(angle) * (2 + Math.random()*3);
+      v.dirY = Math.sin(angle) * (2 + Math.random()*3);
+      vines.push(v);
+    }
+  }, 1600);
+
+  // Continuous spawn wave
+  let spawnCount = 0;
+  function spawnWave() {
+    if (currentStage !== 1 || spawnCount > 8) return;
+    spawnCount++;
+    for (let i = 0; i < 3; i++) {
+      const side = Math.floor(Math.random()*4);
+      let x, y;
+      if (side===0) { x=Math.random()*W; y=0; }
+      else if (side===1) { x=W; y=Math.random()*H; }
+      else if (side===2) { x=Math.random()*W; y=H; }
+      else { x=0; y=Math.random()*H; }
+      const v = new Vine(x, y);
+      v.madness = true;
+      v.maxLen = 80 + Math.random()*140;
+      v.width = 1 + Math.random()*2;
+      v.dirX = (W/2 - x) * 0.01 + (Math.random()-0.5)*3;
+      v.dirY = (H/2 - y) * 0.01 + (Math.random()-0.5)*3;
+      vines.push(v);
+    }
+    setTimeout(spawnWave, 800 + Math.random()*600);
+  }
+  setTimeout(spawnWave, 2500);
+
+  // Pulse overlay
+  const pulse = document.getElementById('pulse');
+  pulse.style.animation = 'heartbeat 0.9s ease-in-out infinite';
+
+  // Multiple screen shakes
+  function shake(delay) {
+    setTimeout(() => {
+      if (currentStage !== 1) return;
+      document.getElementById('stage').classList.add('shake');
+      setTimeout(() => document.getElementById('stage').classList.remove('shake'), 600);
+    }, delay);
+  }
+  shake(0); shake(1800); shake(3500); shake(5200);
+}
+
+function initStage3() {
+  vines = [];
+  particles = [];
+  const pulse = document.getElementById('pulse');
+  pulse.style.animation = 'none';
+  pulse.style.opacity = '0';
+}
+
+function initStage4() {
+  vines = [];
+  // Deep darkness - show truth text with delay
+  setTimeout(() => {
+    const tb = document.getElementById('truthBox');
+    tb.classList.add('visible');
+  }, 1000);
+}
+
+function initStage5() {
+  vines = [];
+  particles = [];
+  stage5ThemeT0 = 0;
+  lastStage5ThemeIdx = -1;
+
+  // === Phase 1: 甘い罠の残影 ===
+  // 最初は暗い蔓が画面に残っているように見える（madness vinesを弱く生成）
+  for (let i = 0; i < 6; i++) {
+    const side = i % 4;
+    let x, y;
+    if (side===0) { x=Math.random()*W; y=0; }
+    else if (side===1) { x=W; y=Math.random()*H; }
+    else if (side===2) { x=Math.random()*W; y=H; }
+    else { x=0; y=Math.random()*H; }
+    const v = new Vine(x, y);
+    v.madness = true;
+    v.maxLen = 60 + Math.random()*80;
+    v.width = 1 + Math.random()*1.5;
+    v.dirX = (W/2 - x) * 0.008 + (Math.random()-0.5)*2;
+    v.dirY = (H/2 - y) * 0.008 + (Math.random()-0.5)*2;
+    v.speed = 0.5; // 弱く・遅く
+    vines.push(v);
+  }
+
+  // === Phase 2: 変容 — 2秒後、光の茎が下から昇る ===
+  setTimeout(() => {
+    if (currentStage !== 4) return;
+    // 暗い蔓を消していく（新しいvines配列に差し替え）
+    vines = [];
+
+    const heartCx = W / 2;
+    const heartCy = H * 0.48;
+    const heartScale = Math.min(W, H) * 0.034;
+    const tBottom = findHeartBottomT(heartCx, heartCy, heartScale);
+    const bottomPt = heartShapeCanvas(tBottom, heartCx, heartCy, heartScale);
+    const stemEndY = bottomPt.y;
+
+    const v = new Vine(heartCx, H + 10);
+    v.madness = false;
+    v.rebirthStem = true;
+    v.rebirthHeartStem = true;
+    v.rebirthT0 = performance.now();
+    v.rebirthDuration = 20000;
+    v.morphPhase = 'emerge';
+    v.stemX = heartCx;
+    v.stemEndY = stemEndY;
+    v.heartCx = heartCx;
+    v.heartCy = heartCy;
+    v.heartScale = heartScale;
+    v.heartTBottom = tBottom;
+    v.maxLen = 220;
+    v.width = 2.2;
+    vines.push(v);
+
+    setTimeout(() => {
+      if (currentStage !== 4) return;
+      const colors = ['#f5c6d8','#e8d4f0','#ffffff','#fce4f0','#d4a8e8'];
+      for (let p = 0; p < 18; p++) {
+        particles.push(new FloralParticle(
+          heartCx + (Math.random() - 0.5) * 40,
+          heartCy + (Math.random() - 0.5) * 40,
+          colors[Math.floor(Math.random() * colors.length)]
+        ));
+      }
+    }, 22400);
+  }, 2000);
+
+  // === Phase 3: ハート完成後、花びらが舞う ===
+  setTimeout(() => {
+    if (currentStage !== 4) return;
+    const colors = ['#f5c6d8','#e8b4d0','#ffffff','#d4a8e8','#fce4f0','#ffe8f5'];
+
+    // 底から大量の花びらが昇る
+    let burstCount = 0;
+    function bloomBurst() {
+      if (currentStage !== 4 || burstCount > 20) return;
+      burstCount++;
+      for (let i = 0; i < 8; i++) {
+        particles.push(new FloralParticle(
+          Math.random() * W,
+          H + 5,
+          colors[Math.floor(Math.random() * colors.length)]
+        ));
+      }
+      setTimeout(bloomBurst, 150);
+    }
+    bloomBurst();
+
+    // 中心から放射状に光の粒
+    for (let i = 0; i < 40; i++) {
+      setTimeout(() => {
+        if (currentStage !== 4) return;
+        const angle = Math.random() * Math.PI * 2;
+        const r = 20 + Math.random() * 60;
+        particles.push(new FloralParticle(
+          W/2 + Math.cos(angle) * r,
+          H/2 + Math.sin(angle) * r,
+          colors[Math.floor(Math.random() * colors.length)]
+        ));
+      }, i * 60);
+    }
+
+    // 光の風鈴音
+    playWindChime();
+    setTimeout(playWindChime, 1500);
+  }, 22600);
+}
+
+// ─── Tap handler ──────────────────────────────────
+let tapEnabled = true;
+
+function handleTap(e) {
+  if (!tapEnabled) return;
+  resumeAudio();
+
+  // Particle burst at tap
+  const x = (e.touches ? e.touches[0].clientX : e.clientX) || W/2;
+  const y = (e.touches ? e.touches[0].clientY : e.clientY) || H/2;
+  if (currentStage === 0) {
+    for (let i = 0; i < 15; i++) {
+      particles.push(new FloralParticle(x, y, `hsl(${270+Math.random()*40},70%,${60+Math.random()*20}%)`));
+    }
+  }
+
+  // Advance stage (not during choice or stage 4)
+  if (currentStage === 2) return; // choice stage - handled by buttons
+  if (currentStage < 4) goToStage(currentStage + 1);
+}
+
+document.addEventListener('click', handleTap);
+document.addEventListener('touchstart', handleTap);
+
+// ─── Choose ───────────────────────────────────────
+function choose(c) {
+  choice = c;
+  tapEnabled = false;
+  resumeAudio();
+  setTimeout(() => {
+    tapEnabled = true;
+    goToStage(3);
+  }, 500);
+}
+
+// ─── Go to Stage ─────────────────────────────────
+function goToStage(n) {
+  if (currentStage === 4 && n !== 4) stopStage5Voice();
+  const s = stages[n];
+  currentStage = n;
+  applyMasterGainForStage(n);
+
+  // Update bg
+  const stageEl = document.getElementById('stage');
+  stageEl.className = s.bg;
+
+  // Update dots
+  for (let i = 0; i < 5; i++) {
+    document.getElementById('d'+i).classList.toggle('active', i === n);
+  }
+
+  // Update label
+  document.getElementById('stageLabel').textContent = s.label;
+
+  // Reset texts
+  const mainText = document.getElementById('mainText');
+  const subText = document.getElementById('subText');
+  const truthBox = document.getElementById('truthBox');
+  const choices = document.getElementById('choices');
+
+  mainText.classList.remove('visible');
+  subText.classList.remove('visible');
+  truthBox.classList.remove('visible');
+  choices.classList.remove('show','visible');
+
+  mainText.innerHTML = '';
+  subText.textContent = '';
+  truthBox.innerHTML = '';
+
+  // Stage-specific content
+  if (n === 2) {
+    // Choice stage
+    choices.classList.add('show');
+    setTimeout(() => choices.classList.add('visible'), 100);
+    mainText.textContent = s.text;
+    setTimeout(() => mainText.classList.add('visible'), 300);
+    document.getElementById('tapHint').style.display = 'none';
+  } else if (n === 3) {
+    // Truth stage
+    document.getElementById('tapHint').style.display = 'none';
+    const lines = s.truth.split('\n');
+    truthBox.innerHTML = lines.map(l => l).join('<br>');
+    setTimeout(() => truthBox.classList.add('visible'), 800);
+    // after reading, allow tap to continue
+    setTimeout(() => {
+      document.getElementById('tapHint').style.display = 'block';
+      document.getElementById('tapHint').textContent = '— tap to continue —';
+      tapEnabled = true;
+    }, 4000);
+    tapEnabled = false;
+  } else if (n === 4) {
+    // Rebirth
+    stopStage5Voice();
+    stage5ThemeT0 = 0;
+    lastStage5ThemeIdx = -1;
+    stage5ThemeStroke = [55, 155, 92];
+    document.getElementById('tapHint').style.display = 'none';
+    mainText.innerHTML =
+      '<span class="s5-text-pink">あなたは<br>あなた自身を<br>愛でることを<br>覚えていった</span>' +
+      '<p id="s5RotatingMsg" class="s5-rotating-msg" aria-live="polite"></p>';
+    setTimeout(() => mainText.classList.add('visible'), 600);
+  } else {
+    mainText.innerHTML = s.text.replace(/\n/g, '<br>');
+    setTimeout(() => mainText.classList.add('visible'), 300);
+    if (s.sub) {
+      subText.textContent = s.sub;
+      setTimeout(() => subText.classList.add('visible'), 500);
+    }
+    document.getElementById('tapHint').style.display = 'block';
+    document.getElementById('tapHint').textContent = '— tap —';
+  }
+
+  // Audio
+  if (s.audio) setTimeout(s.audio, 300);
+
+  // Init visuals
+  if (s.init) s.init();
+
+  // Reset pulse for non-stage2
+  if (n !== 1) {
+    const pulse = document.getElementById('pulse');
+    pulse.style.animation = 'none';
+    pulse.style.opacity = '0';
+  }
+}
+
+// ─── Draw Loop ───────────────────────────────────
+function draw() {
+  animId = requestAnimationFrame(draw);
+
+  // Stage 2: afterimage (残像) — don't fully clear, overlay dark semi-transparent rect
+  if (currentStage === 1) {
+    ctx.fillStyle = 'rgba(10,0,16,0.18)';
+    ctx.fillRect(0, 0, W, H);
+  } else {
+    ctx.clearRect(0, 0, W, H);
+  }
+
+  vines.forEach(v => { v.update(); });
+
+  stage5ThemeStroke = [55, 155, 92];
+  if (currentStage === 4 && vines.length && vines[0].rebirthHeartStem) {
+    const v = vines[0];
+    if (v.morphPhase === 'done' && v.points.length > 2) {
+      if (!stage5ThemeT0) stage5ThemeT0 = performance.now();
+      const idx = Math.floor((performance.now() - stage5ThemeT0) / 10000) % 6;
+      drawStage5HeartFill(v.points, v.heartCx, v.heartCy, v.heartScale, idx, 1);
+      stage5ThemeStroke = STAGE5_THEMES[idx].stroke;
+      updateStage5RotatingMessage(idx);
+    } else if (v.morphPhase === 'emerge' && v.points.length > 2) {
+      const elapsed = performance.now() - v.rebirthT0;
+      const tLin = Math.min(1, elapsed / v.rebirthDuration);
+      const e = tLin < 0.5 ? 4 * tLin * tLin * tLin : 1 - Math.pow(-2 * tLin + 2, 3) / 2;
+      drawStage5HeartFill(v.points, v.heartCx, v.heartCy, v.heartScale, 0, Math.max(0.06, e) * 0.72);
+    }
+  } else if (currentStage !== 4) {
+    stage5ThemeT0 = 0;
+    lastStage5ThemeIdx = -1;
+    stopStage5Voice();
+  }
+
+  vines.forEach(v => { v.draw(); });
+
+  // Stage 1: gentle ambient particles
+  if (currentStage === 0 && Math.random() < 0.08) {
+    particles.push(new FloralParticle(
+      Math.random()*W, H/2 + Math.random()*(H/2),
+      `hsla(${270+Math.random()*40},60%,70%,0.6)`
+    ));
+  }
+
+  // Stage 4: white floral rise
+  if (currentStage === 3 && Math.random() < 0.04) {
+    particles.push(new FloralParticle(
+      Math.random()*W, H,
+      `hsla(${310+Math.random()*30},60%,85%,0.7)`
+    ));
+  }
+
+  // Stage 5: continuous bloom（全体3倍、テーマ6「あなたの人生に彩りを」はさらに3倍＝従来比9倍）
+  if (currentStage === 4 && Math.random() < 0.15) {
+    let s5BloomMult = 3;
+    const vv = vines[0];
+    if (vv && vv.rebirthHeartStem && vv.morphPhase === 'done' && stage5ThemeT0) {
+      if (Math.floor((performance.now() - stage5ThemeT0) / 10000) % 6 === 5) s5BloomMult = 9;
+    }
+    const colors = ['#f5c6d8','#e8b4d0','#ffffff','#d4a8e8'];
+    for (let b = 0; b < s5BloomMult; b++) {
+      particles.push(new FloralParticle(
+        Math.random()*W, H,
+        colors[Math.floor(Math.random()*colors.length)]
+      ));
+    }
+  }
+
+  // Update & draw particles
+  particles = particles.filter(p => p.life > 0);
+  particles.forEach(p => { p.update(); p.draw(); });
+}
+
+// ─── Start ───────────────────────────────────────
+goToStage(0);
+draw();
+</script>
+</body>
+</html>
