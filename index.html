@@ -497,6 +497,7 @@ let stage4BgT0 = 0;
 let stage4TypeTimer = null;
 const STAGE4_TYPEWRITER_TEXT =
   '巻き付いてた執着は　あなたではなく　愛されたかった私自身だったかもしれない';
+const STAGE4_TYPEWRITER_TEXT_STAY = '愛してるのは相手？愛されたいだけ？';
 
 function rgbLerp(a, b, t) {
   return {
@@ -1470,6 +1471,8 @@ function goToStage(n) {
     truthBox.textContent = '';
     truthBox.classList.remove('visible');
     setTimeout(() => truthBox.classList.add('visible'), 150);
+    const stage4TypeText =
+      choice === 'stay' ? STAGE4_TYPEWRITER_TEXT_STAY : STAGE4_TYPEWRITER_TEXT;
     let ti = 0;
     stage4TypeTimer = setInterval(() => {
       if (currentStage !== 3) {
@@ -1478,8 +1481,8 @@ function goToStage(n) {
         return;
       }
       ti++;
-      truthBox.textContent = STAGE4_TYPEWRITER_TEXT.slice(0, ti);
-      if (ti >= STAGE4_TYPEWRITER_TEXT.length) {
+      truthBox.textContent = stage4TypeText.slice(0, ti);
+      if (ti >= stage4TypeText.length) {
         clearInterval(stage4TypeTimer);
         stage4TypeTimer = null;
       }
