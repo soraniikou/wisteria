@@ -208,6 +208,19 @@
     color: var(--wisteria-light);
   }
 
+  .s4-truth-typewriter {
+    border-left: none;
+    text-align: center;
+    color: #b898e8;
+    padding: 1.25rem 1rem;
+    font-size: clamp(0.92rem, 3.1vw, 1.1rem);
+    line-height: 2.35;
+    letter-spacing: 0.05em;
+    max-width: 28em;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
   /* Stage 5 main text accents */
   .s5 .main-text { padding-top: 0.25rem; }
   .s5-text-pink {
@@ -479,6 +492,125 @@ let stage5ThemeStroke = [55, 155, 92];
 /* index.html と同じフォルダに配置（mp3 / m4a / ogg 等。拡張子は下の定数に合わせる） */
 const STAGE5_VOICE_SRC = 'stage5-voice.mp3';
 let stage5VoiceAudio = null;
+let stage2DespairT0 = 0;
+let stage4BgT0 = 0;
+let stage4TypeTimer = null;
+const STAGE4_TYPEWRITER_TEXT =
+  '巻き付いてた執着は　あなたではなく　愛されたかった私自身だったかもしれない';
+
+function rgbLerp(a, b, t) {
+  return {
+    r: Math.round(a.r + (b.r - a.r) * t),
+    g: Math.round(a.g + (b.g - a.g) * t),
+    b: Math.round(a.b + (b.b - a.b) * t)
+  };
+}
+function rgbToCss(c) {
+  return `rgb(${c.r},${c.g},${c.b})`;
+}
+function stage4AnimatedBackground(t) {
+  t = Math.min(1, Math.max(0, t));
+  const black = { r: 0, g: 0, b: 0 };
+  const darkPurple = { r: 32, g: 10, b: 52 };
+  const flowerPurple = { r: 123, g: 79, b: 166 };
+  let cTop, cBot;
+  if (t < 0.5) {
+    const u = t * 2;
+    cTop = rgbLerp(black, darkPurple, u);
+    cBot = rgbLerp(black, darkPurple, u);
+  } else {
+    const u = (t - 0.5) * 2;
+    cTop = rgbLerp(darkPurple, flowerPurple, u);
+    cBot = rgbLerp(darkPurple, flowerPurple, u);
+  }
+  const cMid = rgbLerp(cTop, cBot, 0.45);
+  return `linear-gradient(165deg, ${rgbToCss(cTop)} 0%, ${rgbToCss(cMid)} 48%, ${rgbToCss(cBot)} 100%)`;
+}
+
+function applyStage4StemSlide(pts, elapsed) {
+  let ox = 0;
+  let oy = 0;
+  if (elapsed > 12000) {
+    const t = (elapsed - 12000) / 1000;
+    ox = t * 16;
+    oy = t * 24;
+  }
+  return pts.map(p => ({ x: p.x + ox, y: p.y + oy }));
+}
+
+function quadBezierPoint(p0, p1, p2, t) {
+  const u = 1 - t;
+  return {
+    x: u * u * p0.x + 2 * u * t * p1.x + t * t * p2.x,
+    y: u * u * p0.y + 2 * u * t * p1.y + t * t * p2.y
+  };
+}
+
+function getStage4BezierControl() {
+  const x0 = W * 0.06;
+  const y0 = H * 0.07;
+  const x1 = W * 0.84;
+  const y1 = H * 0.78;
+  const p0 = { x: x0, y: y0 };
+  const p2 = { x: x1, y: y1 };
+  const mx = (x0 + x1) / 2;
+  const my = (y0 + y1) / 2;
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const dlen = Math.hypot(dx, dy) || 1;
+  const nx = -dy / dlen;
+  const ny = dx / dlen;
+  const bend = Math.min(W, H) * 0.13;
+  const p1 = { x: mx + nx * bend, y: my + ny * bend };
+  return { p0, p1, p2 };
+}
+
+function getStage4StemTip(elapsed) {
+  const { p0, p1, p2 } = getStage4BezierControl();
+  const grow = Math.min(1, elapsed / 12000);
+  const e = grow < 0.5 ? 4 * grow * grow * grow : 1 - Math.pow(-2 * grow + 2, 3) / 2;
+  const p = quadBezierPoint(p0, p1, p2, e);
+  return applyStage4StemSlide([p], elapsed)[0];
+}
+
+function buildStage4StemPoints(elapsed) {
+  const { p0, p1, p2 } = getStage4BezierControl();
+  const segs = 100;
+  const grow = Math.min(1, elapsed / 12000);
+  const e = grow < 0.5 ? 4 * grow * grow * grow : 1 - Math.pow(-2 * grow + 2, 3) / 2;
+  const n = Math.max(2, Math.floor(1 + e * (segs - 1)));
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i / Math.max(1, n - 1)) * e;
+    pts.push(quadBezierPoint(p0, p1, p2, t));
+  }
+  return applyStage4StemSlide(pts, elapsed);
+}
+
+function drawStage4GreenStem() {
+  if (currentStage !== 3 || !stage4BgT0) return;
+  const elapsed = performance.now() - stage4BgT0;
+  const pts = buildStage4StemPoints(elapsed);
+  if (pts.length < 2) return;
+  const gr = 48;
+  const gg = 155;
+  const gb = 88;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.strokeStyle = `rgba(${gr},${gg},${gb},0.28)`;
+  ctx.lineWidth = 6;
+  ctx.shadowColor = `rgb(${gr},${gg},${gb})`;
+  ctx.shadowBlur = 12;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.strokeStyle = `rgba(${gr},${gg},${gb},0.92)`;
+  ctx.lineWidth = 2.4;
+  ctx.stroke();
+}
 
 function resize() {
   W = canvas.width = window.innerWidth;
@@ -518,6 +650,62 @@ class FloralParticle {
     ctx.fillStyle = this.color;
     ctx.fill();
     ctx.restore();
+  }
+}
+
+/* ステージ2：茎周りの藤の花びらがゆっくり剥がれ落ちる */
+class Stage2PeelingPetal {
+  constructor(x, y, color) {
+    this.x = x;
+    this.y = y;
+    this.color = color;
+    this.size = 2.2 + Math.random() * 5;
+    this.rot = Math.random() * Math.PI * 2;
+    this.rotV = (Math.random() - 0.5) * 0.16;
+    this.vx = (Math.random() - 0.5) * 1.4;
+    this.vy = 0.15 + Math.random() * 0.45;
+    this.life = 0.88 + Math.random() * 0.12;
+    this.decay = 0.0012 + Math.random() * 0.002;
+  }
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+    this.vy += 0.032;
+    this.vx *= 0.993;
+    this.life -= this.decay;
+    this.rot += this.rotV;
+  }
+  draw() {
+    const a = Math.min(1, Math.max(0, this.life));
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rot);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, this.size, this.size * 0.46, 0, 0, Math.PI * 2);
+    ctx.fillStyle = this.color;
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function stage2PetalColor() {
+  const h = 265 + Math.random() * 35;
+  const s = 48 + Math.random() * 22;
+  const l = 52 + Math.random() * 18;
+  return `hsla(${h},${s}%,${l}%,${0.82 + Math.random() * 0.15})`;
+}
+
+function spawnStage2PeelingOnVines(count) {
+  if (!vines.length) return;
+  for (let i = 0; i < count; i++) {
+    const v = vines[Math.floor(Math.random() * vines.length)];
+    if (!v.points || v.points.length < 1) continue;
+    const pi = Math.floor(Math.random() * v.points.length);
+    const p = v.points[pi];
+    const ox = (Math.random() - 0.5) * 16;
+    const oy = (Math.random() - 0.5) * 16;
+    particles.push(new Stage2PeelingPetal(p.x + ox, p.y + oy, stage2PetalColor()));
   }
 }
 
@@ -935,7 +1123,7 @@ const stages = [
     label: 'Stage 4 — 中毒・真実',
     bg: 's4',
     text: null,
-    truth: `絞め殺そうとしたのは\nあなたではなく\n<em>あなたの中に見ていた\n私自身だったのかもしれない</em>`,
+    truth: STAGE4_TYPEWRITER_TEXT,
     sub: null,
     audio: () => { playTone(65.41, 'sine', 6, 0.06); playTone(130.81, 'sine', 6, 0.04, 1); },
     init: initStage4
@@ -967,6 +1155,7 @@ function initStage1() {
 function initStage2() {
   vines = [];
   particles = [];
+  stage2DespairT0 = performance.now();
 
   // Wave 1: immediate burst from all 4 edges
   for (let i = 0; i < 12; i++) {
@@ -1055,6 +1244,12 @@ function initStage2() {
     }, delay);
   }
   shake(0); shake(1800); shake(3500); shake(5200);
+
+  // 茎周りに藤の花を咲かせた直後から、12秒かけて花びらが剥がれ落ちる
+  setTimeout(() => {
+    if (currentStage !== 1) return;
+    spawnStage2PeelingOnVines(140);
+  }, 80);
 }
 
 function initStage3() {
@@ -1067,11 +1262,7 @@ function initStage3() {
 
 function initStage4() {
   vines = [];
-  // Deep darkness - show truth text with delay
-  setTimeout(() => {
-    const tb = document.getElementById('truthBox');
-    tb.classList.add('visible');
-  }, 1000);
+  particles = [];
 }
 
 function initStage5() {
@@ -1221,12 +1412,20 @@ function choose(c) {
 // ─── Go to Stage ─────────────────────────────────
 function goToStage(n) {
   if (currentStage === 4 && n !== 4) stopStage5Voice();
+  if (stage4TypeTimer) {
+    clearInterval(stage4TypeTimer);
+    stage4TypeTimer = null;
+  }
   const s = stages[n];
   currentStage = n;
   applyMasterGainForStage(n);
 
   // Update bg
   const stageEl = document.getElementById('stage');
+  if (n !== 3) {
+    stageEl.style.background = '';
+    stageEl.style.transition = '';
+  }
   stageEl.className = s.bg;
 
   // Update dots
@@ -1251,6 +1450,7 @@ function goToStage(n) {
   mainText.innerHTML = '';
   subText.textContent = '';
   truthBox.innerHTML = '';
+  truthBox.style.display = '';
 
   // Stage-specific content
   if (n === 2) {
@@ -1261,20 +1461,41 @@ function goToStage(n) {
     setTimeout(() => mainText.classList.add('visible'), 300);
     document.getElementById('tapHint').style.display = 'none';
   } else if (n === 3) {
-    // Truth stage
+    // Truth stage（背景12秒グラデ／緑の茎／6〜12秒で先端から藤の花びら／中央に紫のタイプライター）
+    stage4BgT0 = performance.now();
+    stageEl.style.transition = 'none';
+    stageEl.style.background = stage4AnimatedBackground(0);
+    truthBox.style.display = 'block';
+    truthBox.className = 'truth-box s4-truth-typewriter';
+    truthBox.textContent = '';
+    truthBox.classList.remove('visible');
+    setTimeout(() => truthBox.classList.add('visible'), 150);
+    let ti = 0;
+    stage4TypeTimer = setInterval(() => {
+      if (currentStage !== 3) {
+        clearInterval(stage4TypeTimer);
+        stage4TypeTimer = null;
+        return;
+      }
+      ti++;
+      truthBox.textContent = STAGE4_TYPEWRITER_TEXT.slice(0, ti);
+      if (ti >= STAGE4_TYPEWRITER_TEXT.length) {
+        clearInterval(stage4TypeTimer);
+        stage4TypeTimer = null;
+      }
+    }, 72);
     document.getElementById('tapHint').style.display = 'none';
-    const lines = s.truth.split('\n');
-    truthBox.innerHTML = lines.map(l => l).join('<br>');
-    setTimeout(() => truthBox.classList.add('visible'), 800);
-    // after reading, allow tap to continue
     setTimeout(() => {
       document.getElementById('tapHint').style.display = 'block';
       document.getElementById('tapHint').textContent = '— tap to continue —';
       tapEnabled = true;
-    }, 4000);
+    }, 14000);
     tapEnabled = false;
   } else if (n === 4) {
     // Rebirth
+    truthBox.style.display = 'none';
+    truthBox.textContent = '';
+    truthBox.classList.remove('visible');
     stopStage5Voice();
     stage5ThemeT0 = 0;
     lastStage5ThemeIdx = -1;
@@ -1323,6 +1544,11 @@ function draw() {
 
   vines.forEach(v => { v.update(); });
 
+  if (currentStage === 3 && stage4BgT0) {
+    const t = Math.min(1, (performance.now() - stage4BgT0) / 12000);
+    document.getElementById('stage').style.background = stage4AnimatedBackground(t);
+  }
+
   stage5ThemeStroke = [55, 155, 92];
   if (currentStage === 4 && vines.length && vines[0].rebirthHeartStem) {
     const v = vines[0];
@@ -1346,6 +1572,8 @@ function draw() {
 
   vines.forEach(v => { v.draw(); });
 
+  if (currentStage === 3) drawStage4GreenStem();
+
   // Stage 1: gentle ambient particles
   if (currentStage === 0 && Math.random() < 0.08) {
     particles.push(new FloralParticle(
@@ -1354,12 +1582,33 @@ function draw() {
     ));
   }
 
-  // Stage 4: white floral rise
-  if (currentStage === 3 && Math.random() < 0.04) {
-    particles.push(new FloralParticle(
-      Math.random()*W, H,
-      `hsla(${310+Math.random()*30},60%,85%,0.7)`
-    ));
+  // Stage 4: 茎の先端付近から藤の花びらが舞う（6〜12秒、回転巻き付きの代わり）
+  if (currentStage === 3 && stage4BgT0) {
+    const el = performance.now() - stage4BgT0;
+    if (el >= 6000 && el < 12000) {
+      const fade = 1 - (el - 6000) / 6000;
+      if (Math.random() < 0.24 + 0.18 * fade) {
+        const tip = getStage4StemTip(el);
+        const colors = [
+          `hsla(${268 + Math.random() * 28},58%,${58 + Math.random() * 20}%,0.9)`,
+          `hsla(${280 + Math.random() * 22},52%,${68 + Math.random() * 15}%,0.82)`
+        ];
+        particles.push(new FloralParticle(
+          tip.x + (Math.random() - 0.5) * 32,
+          tip.y + (Math.random() - 0.5) * 32,
+          colors[Math.floor(Math.random() * colors.length)]
+        ));
+      }
+    }
+  }
+
+  // Stage 2：12秒間、茎から花びらがゆっくり剝がれ落ちる（密度は時間とともに減少）
+  if (currentStage === 1 && vines.length) {
+    const elapsed = performance.now() - stage2DespairT0;
+    if (elapsed < 12000) {
+      const fade = 1 - elapsed / 12000;
+      if (Math.random() < 0.028 * fade) spawnStage2PeelingOnVines(1);
+    }
   }
 
   // Stage 5: continuous bloom（全体3倍、テーマ6「あなたの人生に彩りを」はさらに3倍＝従来比9倍）
