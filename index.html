@@ -244,6 +244,53 @@
   }
   .s5-rotating-msg.visible { opacity: 1; }
 
+  .back-home {
+    position: fixed;
+    top: 0.85rem;
+    left: 0.75rem;
+    z-index: 30;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    padding: 0.35rem 0.65rem;
+    color: rgba(255, 255, 255, 0.55);
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 300;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .back-home:hover { color: rgba(255, 255, 255, 0.88); }
+
+  /* デフォルト非表示（[hidden] より .s5-share-bar の display が勝つブラウザ対策） */
+  .s5-share-bar {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    display: none;
+    justify-content: center;
+    pointer-events: auto;
+  }
+  .s5-share-bar.is-visible {
+    display: flex;
+  }
+  .s5-share-btn {
+    padding: 0.65rem 1.35rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    color: rgba(255, 255, 255, 0.88);
+    background: rgba(25, 18, 40, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+    cursor: pointer;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .s5-share-btn:hover { background: rgba(35, 28, 55, 0.6); }
+
   /* Screen shake */
   @keyframes shake {
     0%,100% { transform: translate(0,0) rotate(0deg); }
@@ -365,6 +412,11 @@
 
 <div class="tap-hint" id="tapHint">— tap —</div>
 
+<button type="button" id="backHome" class="back-home" aria-label="最初の画面へ">↩ 最初へ</button>
+<div id="s5ShareBar" class="s5-share-bar" style="display:none" aria-hidden="true">
+  <button type="button" id="s5ShareBtn" class="s5-share-btn">このメッセージをシェアする</button>
+</div>
+
 <script>
 // ─── Audio Engine ───────────────────────────────
 let AC = null;
@@ -374,12 +426,34 @@ const MASTER_GAIN_BASE = 0.45;
 const STAGE5_BGM_GAIN_MULT = 0.6;
 
 function masterGainMultiplierForStage(stageIndex) {
-  return stageIndex === 4 ? STAGE5_BGM_GAIN_MULT : 1;
+  return stageIndex === 5 ? STAGE5_BGM_GAIN_MULT : 1;
 }
 
 function applyMasterGainForStage(stageIndex) {
   if (!masterGain) return;
   masterGain.gain.value = MASTER_GAIN_BASE * masterGainMultiplierForStage(stageIndex);
+}
+
+let s5AudioUnlockPrimed = false;
+
+function stage5HeartReadyForVoice() {
+  return (
+    currentStage === 5 &&
+    vines.length &&
+    vines[0].rebirthHeartStem &&
+    vines[0].morphPhase === 'done'
+  );
+}
+
+function tryStage5VoiceResume() {
+  if (!stage5HeartReadyForVoice() || !stage5ThemeT0) return;
+  const idx = Math.floor((performance.now() - stage5ThemeT0) / 10000) % 6;
+  if (idx !== 0) return;
+  ensureStage5VoiceAudio();
+  if (stage5VoiceAudio.paused || stage5VoiceAudio.ended) {
+    stage5VoiceAudio.currentTime = 0;
+    stage5VoiceAudio.play().catch(() => {});
+  }
 }
 
 function initAudio() {
@@ -397,11 +471,25 @@ function initAudio() {
 
 function resumeAudio(cb) {
   if (!audioReady) initAudio();
-  if (!AC || !masterGain) { if(cb) cb(); return; }
+  if (!AC || !masterGain) { if (cb) cb(); return; }
+  const afterUnlocked = () => {
+    if (!s5AudioUnlockPrimed && AC) {
+      s5AudioUnlockPrimed = true;
+      try {
+        const buf = AC.createBuffer(1, 1, 22050);
+        const src = AC.createBufferSource();
+        src.buffer = buf;
+        src.connect(AC.destination);
+        src.start(0);
+      } catch (_) {}
+    }
+    tryStage5VoiceResume();
+    if (cb) cb();
+  };
   if (AC.state === 'suspended') {
-    AC.resume().then(() => { if(cb) cb(); });
+    AC.resume().then(afterUnlocked).catch(afterUnlocked);
   } else {
-    if(cb) cb();
+    afterUnlocked();
   }
 }
 
@@ -484,11 +572,13 @@ function playFloralBurst() {
 // ─── Canvas / Visual Engine ──────────────────────
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-let W, H, currentStage = 0, animId, particles = [], vines = [], flowers = [];
+let W, H, currentStage = 1, animId, particles = [], vines = [], flowers = [];
 let choice = null;
 let stage5ThemeT0 = 0;
 let lastStage5ThemeIdx = -1;
 let stage5ThemeStroke = [55, 155, 92];
+let stage5ChromeTimer = null;
+const STAGE5_SHARE_TEXT = 'あなたはあなた自身を愛でることを覚えていった';
 /* index.html と同じフォルダに配置（mp3 / m4a / ogg 等。拡張子は下の定数に合わせる） */
 const STAGE5_VOICE_SRC = 'stage5-voice.mp3';
 let stage5VoiceAudio = null;
@@ -589,7 +679,7 @@ function buildStage4StemPoints(elapsed) {
 }
 
 function drawStage4GreenStem() {
-  if (currentStage !== 3 || !stage4BgT0) return;
+  if (currentStage !== 4 || !stage4BgT0) return;
   const elapsed = performance.now() - stage4BgT0;
   const pts = buildStage4StemPoints(elapsed);
   if (pts.length < 2) return;
@@ -1057,7 +1147,7 @@ function ensureStage5VoiceAudio() {
   stage5VoiceAudio = new Audio(STAGE5_VOICE_SRC);
   stage5VoiceAudio.preload = 'auto';
   stage5VoiceAudio.addEventListener('ended', () => {
-    if (currentStage !== 4) return;
+    if (currentStage !== 5) return;
     stage5VoiceAudio.currentTime = 0;
     stage5VoiceAudio.play().catch(() => {});
   });
@@ -1076,6 +1166,25 @@ function syncStage5Voice(idx) {
     stage5VoiceAudio.currentTime = 0;
     stage5VoiceAudio.play().catch(() => {});
   }
+}
+
+/** シェアボタンは currentStage === 5 のときのみ表示（1〜5 の段階番号） */
+const SHARE_BAR_STAGE_INDEX = 5;
+
+function showStage5ShareBar() {
+  const bar = document.getElementById('s5ShareBar');
+  if (!bar || currentStage !== 5) return;
+  bar.style.display = 'flex';
+  bar.classList.add('is-visible');
+  bar.setAttribute('aria-hidden', 'false');
+}
+
+function hideStage5ShareBar() {
+  const bar = document.getElementById('s5ShareBar');
+  if (!bar) return;
+  bar.style.display = 'none';
+  bar.classList.remove('is-visible');
+  bar.setAttribute('aria-hidden', 'true');
 }
 
 function updateStage5RotatingMessage(idx) {
@@ -1179,7 +1288,7 @@ function initStage2() {
   const corners = [[0,0],[W,0],[0,H],[W,H]];
   corners.forEach((c, i) => {
     setTimeout(() => {
-      if (currentStage !== 1) return;
+      if (currentStage !== 2) return;
       for (let j = 0; j < 4; j++) {
         const v = new Vine(c[0] + (Math.random()-0.5)*60, c[1] + (Math.random()-0.5)*60);
         v.madness = true;
@@ -1194,7 +1303,7 @@ function initStage2() {
 
   // Wave 3: center explosion (delayed more)
   setTimeout(() => {
-    if (currentStage !== 1) return;
+    if (currentStage !== 2) return;
     for (let i = 0; i < 10; i++) {
       const angle = (i / 10) * Math.PI * 2;
       const r = 30 + Math.random()*50;
@@ -1211,7 +1320,7 @@ function initStage2() {
   // Continuous spawn wave
   let spawnCount = 0;
   function spawnWave() {
-    if (currentStage !== 1 || spawnCount > 8) return;
+    if (currentStage !== 2 || spawnCount > 8) return;
     spawnCount++;
     for (let i = 0; i < 3; i++) {
       const side = Math.floor(Math.random()*4);
@@ -1239,7 +1348,7 @@ function initStage2() {
   // Multiple screen shakes
   function shake(delay) {
     setTimeout(() => {
-      if (currentStage !== 1) return;
+      if (currentStage !== 2) return;
       document.getElementById('stage').classList.add('shake');
       setTimeout(() => document.getElementById('stage').classList.remove('shake'), 600);
     }, delay);
@@ -1248,7 +1357,7 @@ function initStage2() {
 
   // 茎周りに藤の花を咲かせた直後から、12秒かけて花びらが剥がれ落ちる
   setTimeout(() => {
-    if (currentStage !== 1) return;
+    if (currentStage !== 2) return;
     spawnStage2PeelingOnVines(140);
   }, 80);
 }
@@ -1293,7 +1402,7 @@ function initStage5() {
 
   // === Phase 2: 変容 — 2秒後、光の茎が下から昇る ===
   setTimeout(() => {
-    if (currentStage !== 4) return;
+    if (currentStage !== 5) return;
     // 暗い蔓を消していく（新しいvines配列に差し替え）
     vines = [];
 
@@ -1322,7 +1431,7 @@ function initStage5() {
     vines.push(v);
 
     setTimeout(() => {
-      if (currentStage !== 4) return;
+      if (currentStage !== 5) return;
       const colors = ['#f5c6d8','#e8d4f0','#ffffff','#fce4f0','#d4a8e8'];
       for (let p = 0; p < 18; p++) {
         particles.push(new FloralParticle(
@@ -1336,13 +1445,13 @@ function initStage5() {
 
   // === Phase 3: ハート完成後、花びらが舞う ===
   setTimeout(() => {
-    if (currentStage !== 4) return;
+    if (currentStage !== 5) return;
     const colors = ['#f5c6d8','#e8b4d0','#ffffff','#d4a8e8','#fce4f0','#ffe8f5'];
 
     // 底から大量の花びらが昇る
     let burstCount = 0;
     function bloomBurst() {
-      if (currentStage !== 4 || burstCount > 20) return;
+      if (currentStage !== 5 || burstCount > 20) return;
       burstCount++;
       for (let i = 0; i < 8; i++) {
         particles.push(new FloralParticle(
@@ -1358,7 +1467,7 @@ function initStage5() {
     // 中心から放射状に光の粒
     for (let i = 0; i < 40; i++) {
       setTimeout(() => {
-        if (currentStage !== 4) return;
+        if (currentStage !== 5) return;
         const angle = Math.random() * Math.PI * 2;
         const r = 20 + Math.random() * 60;
         particles.push(new FloralParticle(
@@ -1385,15 +1494,15 @@ function handleTap(e) {
   // Particle burst at tap
   const x = (e.touches ? e.touches[0].clientX : e.clientX) || W/2;
   const y = (e.touches ? e.touches[0].clientY : e.clientY) || H/2;
-  if (currentStage === 0) {
+  if (currentStage === 1) {
     for (let i = 0; i < 15; i++) {
       particles.push(new FloralParticle(x, y, `hsl(${270+Math.random()*40},70%,${60+Math.random()*20}%)`));
     }
   }
 
-  // Advance stage (not during choice or stage 4)
-  if (currentStage === 2) return; // choice stage - handled by buttons
-  if (currentStage < 4) goToStage(currentStage + 1);
+  // Advance stage (not during choice or truth stage)
+  if (currentStage === 3) return; // choice stage - handled by buttons
+  if (currentStage < 5) goToStage(currentStage + 1);
 }
 
 document.addEventListener('click', handleTap);
@@ -1406,24 +1515,60 @@ function choose(c) {
   resumeAudio();
   setTimeout(() => {
     tapEnabled = true;
-    goToStage(3);
+    goToStage(4);
   }, 500);
+}
+
+function shareStage5Message(e) {
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+  resumeAudio();
+  if (navigator.share) {
+    navigator.share({ text: STAGE5_SHARE_TEXT }).catch(() => {});
+  } else if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(STAGE5_SHARE_TEXT).catch(() => {});
+  }
+}
+
+function goToStage1FromHome(e) {
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+  resumeAudio();
+  if (stage5ChromeTimer) {
+    clearTimeout(stage5ChromeTimer);
+    stage5ChromeTimer = null;
+  }
+  hideStage5ShareBar();
+  choice = null;
+  goToStage(1);
 }
 
 // ─── Go to Stage ─────────────────────────────────
 function goToStage(n) {
-  if (currentStage === 4 && n !== 4) stopStage5Voice();
+  const s = stages[n - 1];
+  if (!s) return;
+
+  if (stage5ChromeTimer) {
+    clearTimeout(stage5ChromeTimer);
+    stage5ChromeTimer = null;
+  }
+  if (n !== SHARE_BAR_STAGE_INDEX) hideStage5ShareBar();
+
+  if (currentStage === SHARE_BAR_STAGE_INDEX && n !== SHARE_BAR_STAGE_INDEX) stopStage5Voice();
   if (stage4TypeTimer) {
     clearInterval(stage4TypeTimer);
     stage4TypeTimer = null;
   }
-  const s = stages[n];
   currentStage = n;
   applyMasterGainForStage(n);
 
   // Update bg
   const stageEl = document.getElementById('stage');
-  if (n !== 3) {
+  if (n !== 4) {
     stageEl.style.background = '';
     stageEl.style.transition = '';
   }
@@ -1431,7 +1576,7 @@ function goToStage(n) {
 
   // Update dots
   for (let i = 0; i < 5; i++) {
-    document.getElementById('d'+i).classList.toggle('active', i === n);
+    document.getElementById('d'+i).classList.toggle('active', i === n - 1);
   }
 
   // Update label
@@ -1454,14 +1599,14 @@ function goToStage(n) {
   truthBox.style.display = '';
 
   // Stage-specific content
-  if (n === 2) {
+  if (n === 3) {
     // Choice stage
     choices.classList.add('show');
     setTimeout(() => choices.classList.add('visible'), 100);
     mainText.textContent = s.text;
     setTimeout(() => mainText.classList.add('visible'), 300);
     document.getElementById('tapHint').style.display = 'none';
-  } else if (n === 3) {
+  } else if (n === 4) {
     // Truth stage（背景12秒グラデ／緑の茎／6〜12秒で先端から藤の花びら／中央に紫のタイプライター）
     stage4BgT0 = performance.now();
     stageEl.style.transition = 'none';
@@ -1475,7 +1620,7 @@ function goToStage(n) {
       choice === 'stay' ? STAGE4_TYPEWRITER_TEXT_STAY : STAGE4_TYPEWRITER_TEXT;
     let ti = 0;
     stage4TypeTimer = setInterval(() => {
-      if (currentStage !== 3) {
+      if (currentStage !== 4) {
         clearInterval(stage4TypeTimer);
         stage4TypeTimer = null;
         return;
@@ -1494,8 +1639,9 @@ function goToStage(n) {
       tapEnabled = true;
     }, 14000);
     tapEnabled = false;
-  } else if (n === 4) {
+  } else if (n === SHARE_BAR_STAGE_INDEX) {
     // Rebirth
+    hideStage5ShareBar();
     truthBox.style.display = 'none';
     truthBox.textContent = '';
     truthBox.classList.remove('visible');
@@ -1508,6 +1654,10 @@ function goToStage(n) {
       '<span class="s5-text-pink">あなたは<br>あなた自身を<br>愛でることを<br>覚えていった</span>' +
       '<p id="s5RotatingMsg" class="s5-rotating-msg" aria-live="polite"></p>';
     setTimeout(() => mainText.classList.add('visible'), 600);
+    stage5ChromeTimer = setTimeout(() => {
+      stage5ChromeTimer = null;
+      if (currentStage === SHARE_BAR_STAGE_INDEX) showStage5ShareBar();
+    }, 22000);
   } else {
     mainText.innerHTML = s.text.replace(/\n/g, '<br>');
     setTimeout(() => mainText.classList.add('visible'), 300);
@@ -1526,7 +1676,7 @@ function goToStage(n) {
   if (s.init) s.init();
 
   // Reset pulse for non-stage2
-  if (n !== 1) {
+  if (n !== 2) {
     const pulse = document.getElementById('pulse');
     pulse.style.animation = 'none';
     pulse.style.opacity = '0';
@@ -1538,7 +1688,7 @@ function draw() {
   animId = requestAnimationFrame(draw);
 
   // Stage 2: afterimage (残像) — don't fully clear, overlay dark semi-transparent rect
-  if (currentStage === 1) {
+  if (currentStage === 2) {
     ctx.fillStyle = 'rgba(10,0,16,0.18)';
     ctx.fillRect(0, 0, W, H);
   } else {
@@ -1547,13 +1697,13 @@ function draw() {
 
   vines.forEach(v => { v.update(); });
 
-  if (currentStage === 3 && stage4BgT0) {
+  if (currentStage === 4 && stage4BgT0) {
     const t = Math.min(1, (performance.now() - stage4BgT0) / 12000);
     document.getElementById('stage').style.background = stage4AnimatedBackground(t);
   }
 
   stage5ThemeStroke = [55, 155, 92];
-  if (currentStage === 4 && vines.length && vines[0].rebirthHeartStem) {
+  if (currentStage === 5 && vines.length && vines[0].rebirthHeartStem) {
     const v = vines[0];
     if (v.morphPhase === 'done' && v.points.length > 2) {
       if (!stage5ThemeT0) stage5ThemeT0 = performance.now();
@@ -1567,7 +1717,7 @@ function draw() {
       const e = tLin < 0.5 ? 4 * tLin * tLin * tLin : 1 - Math.pow(-2 * tLin + 2, 3) / 2;
       drawStage5HeartFill(v.points, v.heartCx, v.heartCy, v.heartScale, 0, Math.max(0.06, e) * 0.72);
     }
-  } else if (currentStage !== 4) {
+  } else if (currentStage !== 5) {
     stage5ThemeT0 = 0;
     lastStage5ThemeIdx = -1;
     stopStage5Voice();
@@ -1575,10 +1725,10 @@ function draw() {
 
   vines.forEach(v => { v.draw(); });
 
-  if (currentStage === 3) drawStage4GreenStem();
+  if (currentStage === 4) drawStage4GreenStem();
 
   // Stage 1: gentle ambient particles
-  if (currentStage === 0 && Math.random() < 0.08) {
+  if (currentStage === 1 && Math.random() < 0.08) {
     particles.push(new FloralParticle(
       Math.random()*W, H/2 + Math.random()*(H/2),
       `hsla(${270+Math.random()*40},60%,70%,0.6)`
@@ -1586,7 +1736,7 @@ function draw() {
   }
 
   // Stage 4: 茎の先端付近から藤の花びらが舞う（6〜12秒、回転巻き付きの代わり）
-  if (currentStage === 3 && stage4BgT0) {
+  if (currentStage === 4 && stage4BgT0) {
     const el = performance.now() - stage4BgT0;
     if (el >= 6000 && el < 12000) {
       const fade = 1 - (el - 6000) / 6000;
@@ -1606,7 +1756,7 @@ function draw() {
   }
 
   // Stage 2：12秒間、茎から花びらがゆっくり剝がれ落ちる（密度は時間とともに減少）
-  if (currentStage === 1 && vines.length) {
+  if (currentStage === 2 && vines.length) {
     const elapsed = performance.now() - stage2DespairT0;
     if (elapsed < 12000) {
       const fade = 1 - elapsed / 12000;
@@ -1615,7 +1765,7 @@ function draw() {
   }
 
   // Stage 5: continuous bloom（全体3倍、テーマ6「あなたの人生に彩りを」はさらに3倍＝従来比9倍）
-  if (currentStage === 4 && Math.random() < 0.15) {
+  if (currentStage === 5 && Math.random() < 0.15) {
     let s5BloomMult = 3;
     const vv = vines[0];
     if (vv && vv.rebirthHeartStem && vv.morphPhase === 'done' && stage5ThemeT0) {
@@ -1635,8 +1785,23 @@ function draw() {
   particles.forEach(p => { p.update(); p.draw(); });
 }
 
+// ─── Stage 5 chrome (tap does not bubble into stage advance) ─
+(function wireStage5Chrome() {
+  const shareBtn = document.getElementById('s5ShareBtn');
+  const backBtn = document.getElementById('backHome');
+  const stopTap = (ev) => ev.stopPropagation();
+  if (shareBtn) {
+    shareBtn.addEventListener('click', shareStage5Message);
+    shareBtn.addEventListener('touchstart', stopTap, { passive: true });
+  }
+  if (backBtn) {
+    backBtn.addEventListener('click', goToStage1FromHome);
+    backBtn.addEventListener('touchstart', stopTap, { passive: true });
+  }
+})();
+
 // ─── Start ───────────────────────────────────────
-goToStage(0);
+goToStage(1);
 draw();
 </script>
 </body>
