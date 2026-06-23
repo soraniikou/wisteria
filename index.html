@@ -302,34 +302,6 @@
   }
   .back-home:hover { color: rgba(255, 255, 255, 0.88); }
 
-  /* デフォルト非表示（[hidden] より .s5-share-bar の display が勝つブラウザ対策） */
-  .s5-share-bar {
-    position: fixed;
-    bottom: 1.5rem;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 30;
-    display: none;
-    justify-content: center;
-    pointer-events: auto;
-  }
-  .s5-share-bar.is-visible {
-    display: flex;
-  }
-  .s5-share-btn {
-    padding: 0.65rem 1.35rem;
-    font-size: 0.78rem;
-    letter-spacing: 0.06em;
-    color: rgba(255, 255, 255, 0.88);
-    background: rgba(25, 18, 40, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 999px;
-    cursor: pointer;
-    font-family: inherit;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .s5-share-btn:hover { background: rgba(35, 28, 55, 0.6); }
-
   /* Screen shake */
   @keyframes shake {
     0%,100% { transform: translate(0,0) rotate(0deg); }
@@ -452,9 +424,6 @@
 <div class="tap-hint" id="tapHint">— tap —</div>
 
 <button type="button" id="backHome" class="back-home" aria-label="最初の画面へ">↩ 最初へ</button>
-<div id="s5ShareBar" class="s5-share-bar" style="display:none" aria-hidden="true">
-  <button type="button" id="s5ShareBtn" class="s5-share-btn">このメッセージをシェアする</button>
-</div>
 
 <script>
 // ─── Audio Engine ───────────────────────────────
@@ -620,9 +589,8 @@ let stage5CurrentThemeIdx = 0;
 /** 「あなたは、まだ枯れてない」の場面のみ ♡ → 薄い青いバラ（手なし） */
 const STAGE5_ROSE_THEME_IDX = 3;
 const STAGE5_ROSE_OPEN_MS = 4200;
+const STAGE5_HEART_SIZE_MULT = 0.9;
 let stage5RoseOpenT0 = 0;
-let stage5ChromeTimer = null;
-const STAGE5_SHARE_TEXT = 'あなたはあなた自身を愛でることを覚えていった';
 /* index.html と同じフォルダに配置（mp3 / m4a / ogg 等。拡張子は下の定数に合わせる） */
 const STAGE5_VOICE_SRC = 'stage5-voice2.mp3';
 let stage5VoiceAudio = null;
@@ -1270,7 +1238,7 @@ function drawStage5RoseFill(cx, cy, scale, opacityMult = 1) {
 
 function drawStage5BackgroundShape(v, themeIdx, opacityMult) {
   if (themeIdx === STAGE5_ROSE_THEME_IDX) {
-    drawStage5RoseFill(v.heartCx, v.heartCy, v.heartScale, opacityMult);
+    drawStage5RoseFill(v.heartCx, v.heartCy, v.heartScale / STAGE5_HEART_SIZE_MULT, opacityMult);
   } else {
     drawStage5HeartFill(v.points, v.heartCx, v.heartCy, v.heartScale, themeIdx, opacityMult);
   }
@@ -1300,25 +1268,6 @@ function syncStage5Voice(idx) {
     stage5VoiceAudio.currentTime = 0;
     stage5VoiceAudio.play().catch(() => {});
   }
-}
-
-/** シェアボタンは currentStage === 5 のときのみ表示（1〜5 の段階番号） */
-const SHARE_BAR_STAGE_INDEX = 5;
-
-function showStage5ShareBar() {
-  const bar = document.getElementById('s5ShareBar');
-  if (!bar || currentStage !== 5) return;
-  bar.style.display = 'flex';
-  bar.classList.add('is-visible');
-  bar.setAttribute('aria-hidden', 'false');
-}
-
-function hideStage5ShareBar() {
-  const bar = document.getElementById('s5ShareBar');
-  if (!bar) return;
-  bar.style.display = 'none';
-  bar.classList.remove('is-visible');
-  bar.setAttribute('aria-hidden', 'true');
 }
 
 function updateStage5RotatingMessage(idx) {
@@ -1548,7 +1497,7 @@ function initStage5() {
 
     const heartCx = W / 2;
     const heartCy = H * 0.48;
-    const heartScale = Math.min(W, H) * 0.034;
+    const heartScale = Math.min(W, H) * 0.034 * STAGE5_HEART_SIZE_MULT;
     const tBottom = findHeartBottomT(heartCx, heartCy, heartScale);
     const bottomPt = heartShapeCanvas(tBottom, heartCx, heartCy, heartScale);
     const stemEndY = bottomPt.y;
@@ -1659,30 +1608,12 @@ function choose(c) {
   }, 500);
 }
 
-function shareStage5Message(e) {
-  if (e) {
-    e.stopPropagation();
-    e.preventDefault();
-  }
-  resumeAudio();
-  if (navigator.share) {
-    navigator.share({ text: STAGE5_SHARE_TEXT }).catch(() => {});
-  } else if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(STAGE5_SHARE_TEXT).catch(() => {});
-  }
-}
-
 function goToStage1FromHome(e) {
   if (e) {
     e.stopPropagation();
     e.preventDefault();
   }
   resumeAudio();
-  if (stage5ChromeTimer) {
-    clearTimeout(stage5ChromeTimer);
-    stage5ChromeTimer = null;
-  }
-  hideStage5ShareBar();
   choice = null;
   goToStage(1);
 }
@@ -1692,13 +1623,7 @@ function goToStage(n) {
   const s = stages[n - 1];
   if (!s) return;
 
-  if (stage5ChromeTimer) {
-    clearTimeout(stage5ChromeTimer);
-    stage5ChromeTimer = null;
-  }
-  if (n !== SHARE_BAR_STAGE_INDEX) hideStage5ShareBar();
-
-  if (currentStage === SHARE_BAR_STAGE_INDEX && n !== SHARE_BAR_STAGE_INDEX) stopStage5Voice();
+  if (currentStage === 5 && n !== 5) stopStage5Voice();
   if (stage4TypeTimer) {
     clearInterval(stage4TypeTimer);
     stage4TypeTimer = null;
@@ -1779,9 +1704,8 @@ function goToStage(n) {
       tapEnabled = true;
     }, 14000);
     tapEnabled = false;
-  } else if (n === SHARE_BAR_STAGE_INDEX) {
+  } else if (n === 5) {
     // Rebirth
-    hideStage5ShareBar();
     truthBox.style.display = 'none';
     truthBox.textContent = '';
     truthBox.classList.remove('visible');
@@ -1795,10 +1719,6 @@ function goToStage(n) {
       '<span class="s5-text-pink">あなたは<br>あなた自身を<br>愛でることを<br>覚えていった</span>' +
       '<p id="s5RotatingMsg" class="s5-rotating-msg" aria-live="polite"></p>';
     setTimeout(() => mainText.classList.add('visible'), 600);
-    stage5ChromeTimer = setTimeout(() => {
-      stage5ChromeTimer = null;
-      if (currentStage === SHARE_BAR_STAGE_INDEX) showStage5ShareBar();
-    }, 22000);
   } else {
     mainText.innerHTML = s.text.replace(/\n/g, '<br>');
     setTimeout(() => mainText.classList.add('visible'), 300);
@@ -1930,15 +1850,10 @@ function draw() {
   particles.forEach(p => { p.update(); p.draw(); });
 }
 
-// ─── Stage 5 chrome (tap does not bubble into stage advance) ─
-(function wireStage5Chrome() {
-  const shareBtn = document.getElementById('s5ShareBtn');
+// ─── Back home button (tap does not bubble into stage advance) ─
+(function wireBackHome() {
   const backBtn = document.getElementById('backHome');
   const stopTap = (ev) => ev.stopPropagation();
-  if (shareBtn) {
-    shareBtn.addEventListener('click', shareStage5Message);
-    shareBtn.addEventListener('touchstart', stopTap, { passive: true });
-  }
   if (backBtn) {
     backBtn.addEventListener('click', goToStage1FromHome);
     backBtn.addEventListener('touchstart', stopTap, { passive: true });
