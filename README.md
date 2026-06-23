@@ -12,7 +12,7 @@
 
 体験→https://wisteria310.vercel.app
 
-![ScreenShot1](スクリーンショット%202026-04-01%20204720.png)
+
 ![ScreenShot2](スクリーンショット%202026-04-01%20204757.png)
 ![ScreenShot3](スクリーンショット%202026-04-01%20204828.png)
 
