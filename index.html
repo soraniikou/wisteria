@@ -616,8 +616,10 @@ let stage5ThemeT0 = 0;
 let lastStage5ThemeIdx = -1;
 let stage5ThemeStroke = [55, 155, 92];
 let stage5CurrentThemeIdx = 0;
-/** 「あなたは、まだ枯れてない」の場面のみ ♡ → 青い薔薇 */
+/** 「あなたは、まだ枯れてない」の場面のみ ♡ → 薄い青いバラ（手なし） */
 const STAGE5_ROSE_THEME_IDX = 3;
+const STAGE5_ROSE_OPEN_MS = 4200;
+let stage5RoseOpenT0 = 0;
 let stage5ChromeTimer = null;
 const STAGE5_SHARE_TEXT = 'あなたはあなた自身を愛でることを覚えていった';
 /* index.html と同じフォルダに配置（mp3 / m4a / ogg 等。拡張子は下の定数に合わせる） */
@@ -1190,40 +1192,78 @@ function drawStage5HeartFill(points, cx, cy, scale, themeIdx, opacityMult = 1) {
   ctx.restore();
 }
 
-function traceStage5RosePath(cx, cy, scale) {
+function easeOutCubicRose(t) {
+  return 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
+}
+
+function drawStage5RosePetal(cx, cy, angle, scale, openT, layer) {
+  const length = scale * (5.0 + layer * 0.75) * (0.48 + openT * 0.52);
+  const baseW = scale * (0.32 + openT * 0.52) * (layer === 0 ? 1 : 0.88);
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+
+  /* 丸みのある花弁 — 先端を尖らせず、幅広の曲線で閉じる */
   ctx.beginPath();
-  const layers = [
-    { petals: 8, rx: 4.8, ry: 3.2, dist: 7.2, rot: 0 },
-    { petals: 6, rx: 4.0, ry: 2.8, dist: 5.4, rot: 0.35 },
-    { petals: 5, rx: 3.2, ry: 2.2, dist: 3.6, rot: 0.2 },
-    { petals: 4, rx: 2.2, ry: 1.6, dist: 2.0, rot: 0.5 }
-  ];
-  for (const layer of layers) {
-    for (let i = 0; i < layer.petals; i++) {
-      const a = (i / layer.petals) * Math.PI * 2 - Math.PI / 2 + layer.rot;
-      const px = cx + Math.cos(a) * scale * layer.dist;
-      const py = cy + Math.sin(a) * scale * layer.dist * 0.82 - scale * 1.8;
-      ctx.ellipse(px, py, scale * layer.rx, scale * layer.ry, a + Math.PI / 2, 0, Math.PI * 2);
-    }
-  }
-  ctx.ellipse(cx, cy - scale * 2.2, scale * 2.4, scale * 2.0, 0, 0, Math.PI * 2);
+  ctx.moveTo(0, scale * 0.14);
+  ctx.bezierCurveTo(
+    -baseW * 0.92, -length * 0.18,
+    -baseW * 0.88, -length * 0.52,
+    -baseW * 0.42, -length * 0.78
+  );
+  ctx.quadraticCurveTo(
+    0, -length * 0.92,
+    baseW * 0.42, -length * 0.78
+  );
+  ctx.bezierCurveTo(
+    baseW * 0.88, -length * 0.52,
+    baseW * 0.92, -length * 0.18,
+    0, scale * 0.14
+  );
+  ctx.closePath();
+
+  const grad = ctx.createLinearGradient(0, scale * 0.12, 0, -length * 0.88);
+  grad.addColorStop(0, 'rgba(200, 225, 255, 0.38)');
+  grad.addColorStop(0.5, 'rgba(150, 195, 240, 0.28)');
+  grad.addColorStop(1, 'rgba(110, 155, 210, 0.22)');
+  ctx.fillStyle = grad;
+  ctx.shadowColor = 'rgba(80, 120, 200, 0.08)';
+  ctx.shadowBlur = scale * 0.8;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.beginPath();
+  ctx.moveTo(0, scale * 0.12);
+  ctx.quadraticCurveTo(0, -length * 0.48, 0, -length * 0.82);
+  ctx.strokeStyle = 'rgba(235, 245, 255, 0.28)';
+  ctx.lineWidth = Math.max(0.45, scale * 0.08);
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  ctx.restore();
 }
 
 function drawStage5RoseFill(cx, cy, scale, opacityMult = 1) {
-  const maxR = scale * 16;
-  const g = ctx.createRadialGradient(cx, cy - scale * 2, maxR * 0.08, cx, cy, maxR * 1.05);
-  g.addColorStop(0, 'rgba(120, 165, 235, 0.5)');
-  g.addColorStop(0.5, 'rgba(75, 120, 200, 0.3)');
-  g.addColorStop(1, 'rgba(40, 70, 140, 0.08)');
+  const now = performance.now();
+  const openElapsed = stage5RoseOpenT0 ? now - stage5RoseOpenT0 : 0;
+  const openT = easeOutCubicRose(openElapsed / STAGE5_ROSE_OPEN_MS);
+  const floatY = Math.sin(now * 0.00112) * scale * 1.7;
+  const rcx = cx;
+  const rcy = cy + floatY;
+  const alpha = 0.42 * opacityMult;
+  const petalCount = 6;
+
   ctx.save();
-  ctx.globalAlpha = opacityMult;
-  traceStage5RosePath(cx, cy, scale);
-  ctx.fillStyle = g;
-  ctx.fill();
-  traceStage5RosePath(cx, cy, scale);
-  ctx.strokeStyle = `rgba(55, 95, 175, ${0.52 * opacityMult})`;
-  ctx.lineWidth = Math.max(1.2, scale * 0.35);
-  ctx.stroke();
+  ctx.globalAlpha = alpha;
+
+  for (let i = 0; i < petalCount; i++) {
+    const closedAngle = -Math.PI / 2 + (i - (petalCount - 1) / 2) * 0.13;
+    const openAngle = (i / petalCount) * Math.PI * 2 - Math.PI / 2 + 0.18;
+    const angle = closedAngle + (openAngle - closedAngle) * openT;
+    drawStage5RosePetal(rcx, rcy, angle, scale, openT, i % 2);
+  }
+
   ctx.restore();
 }
 
@@ -1282,6 +1322,11 @@ function hideStage5ShareBar() {
 
 function updateStage5RotatingMessage(idx) {
   if (idx === lastStage5ThemeIdx) return;
+  if (idx === STAGE5_ROSE_THEME_IDX) {
+    stage5RoseOpenT0 = performance.now();
+  } else {
+    stage5RoseOpenT0 = 0;
+  }
   lastStage5ThemeIdx = idx;
   const el = document.getElementById('s5RotatingMsg');
   if (!el) return;
@@ -1473,6 +1518,7 @@ function initStage5() {
   particles = [];
   stage5ThemeT0 = 0;
   lastStage5ThemeIdx = -1;
+  stage5RoseOpenT0 = 0;
 
   // === Phase 1: 甘い罠の残影 ===
   // 最初は暗い蔓が画面に残っているように見える（madness vinesを弱く生成）
@@ -1741,6 +1787,7 @@ function goToStage(n) {
     stopStage5Voice();
     stage5ThemeT0 = 0;
     lastStage5ThemeIdx = -1;
+    stage5RoseOpenT0 = 0;
     stage5ThemeStroke = [55, 155, 92];
     document.getElementById('tapHint').style.display = 'none';
     mainText.innerHTML =
@@ -1803,9 +1850,9 @@ function draw() {
       if (!stage5ThemeT0) stage5ThemeT0 = performance.now();
       const idx = Math.floor((performance.now() - stage5ThemeT0) / 10000) % 6;
       stage5CurrentThemeIdx = idx;
+      updateStage5RotatingMessage(idx);
       drawStage5BackgroundShape(v, idx, 1);
       stage5ThemeStroke = STAGE5_THEMES[idx].stroke;
-      updateStage5RotatingMessage(idx);
     } else if (v.morphPhase === 'emerge' && v.points.length > 2) {
       stage5CurrentThemeIdx = 0;
       const elapsed = performance.now() - v.rebirthT0;
@@ -1816,6 +1863,7 @@ function draw() {
   } else if (currentStage !== 5) {
     stage5ThemeT0 = 0;
     lastStage5ThemeIdx = -1;
+    stage5RoseOpenT0 = 0;
     stopStage5Voice();
   }
 
