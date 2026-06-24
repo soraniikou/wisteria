@@ -588,6 +588,9 @@ let stage5ThemeStroke = [55, 155, 92];
 let stage5CurrentThemeIdx = 0;
 /** 「あなたは、まだ枯れてない」の場面のみ ♡ → 薄い青いバラ（手なし） */
 const STAGE5_ROSE_THEME_IDX = 3;
+/** 「焦らなくてもだいじょうぶ」の場面のみ ♡ → ぼんやり浮かぶ緑の月 */
+const STAGE5_MOON_THEME_IDX = 5;
+const STAGE5_MOON_SIZE_MULT = 0.72;
 const STAGE5_ROSE_OPEN_MS = 4200;
 const STAGE5_HEART_SIZE_MULT = 0.9;
 let stage5RoseOpenT0 = 0;
@@ -943,7 +946,8 @@ class Vine {
       if (
         this.morphPhase === 'done' &&
         currentStage === 5 &&
-        stage5CurrentThemeIdx === STAGE5_ROSE_THEME_IDX
+        (stage5CurrentThemeIdx === STAGE5_ROSE_THEME_IDX ||
+          stage5CurrentThemeIdx === STAGE5_MOON_THEME_IDX)
       ) {
         return;
       }
@@ -1088,7 +1092,7 @@ const STAGE5_MESSAGES = [
   '応えてくれる人、それは私自身',
   'あなたは、まだ枯れてない',
   '乾いても、また咲かせられる',
-  '忘れていいんだよ'
+  '焦らなくてもだいじょうぶ'
 ];
 
 const STAGE5_THEMES = [
@@ -1236,9 +1240,48 @@ function drawStage5RoseFill(cx, cy, scale, opacityMult = 1) {
   ctx.restore();
 }
 
+function drawStage5GreenMoonFill(cx, cy, scale, opacityMult = 1) {
+  const now = performance.now();
+  const floatY = Math.sin(now * 0.00112) * scale * 1.7;
+  const floatX = Math.sin(now * 0.00088 + 1.1) * scale * 0.45;
+  const s = scale * STAGE5_MOON_SIZE_MULT;
+  const r = s * 11;
+  const ox = cx + floatX;
+  const oy = cy + floatY - scale * 1.4;
+
+  ctx.save();
+  ctx.globalAlpha = opacityMult;
+
+  const haze = ctx.createRadialGradient(ox, oy, r * 0.15, ox, oy, r * 1.75);
+  haze.addColorStop(0, 'rgba(110, 195, 145, 0.2)');
+  haze.addColorStop(0.5, 'rgba(75, 160, 115, 0.1)');
+  haze.addColorStop(1, 'rgba(55, 130, 90, 0)');
+  ctx.fillStyle = haze;
+  ctx.beginPath();
+  ctx.arc(ox, oy, r * 1.75, 0, Math.PI * 2);
+  ctx.fill();
+
+  const moon = ctx.createRadialGradient(ox - r * 0.3, oy - r * 0.34, r * 0.08, ox, oy, r);
+  moon.addColorStop(0, 'rgba(200, 240, 215, 0.36)');
+  moon.addColorStop(0.4, 'rgba(140, 205, 165, 0.28)');
+  moon.addColorStop(0.75, 'rgba(85, 165, 120, 0.16)');
+  moon.addColorStop(1, 'rgba(60, 130, 95, 0)');
+  ctx.fillStyle = moon;
+  ctx.shadowColor = 'rgba(100, 190, 140, 0.4)';
+  ctx.shadowBlur = r * 0.9;
+  ctx.beginPath();
+  ctx.arc(ox, oy, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.restore();
+}
+
 function drawStage5BackgroundShape(v, themeIdx, opacityMult) {
   if (themeIdx === STAGE5_ROSE_THEME_IDX) {
     drawStage5RoseFill(v.heartCx, v.heartCy, v.heartScale / STAGE5_HEART_SIZE_MULT, opacityMult);
+  } else if (themeIdx === STAGE5_MOON_THEME_IDX) {
+    drawStage5GreenMoonFill(v.heartCx, v.heartCy, v.heartScale, opacityMult);
   } else {
     drawStage5HeartFill(v.points, v.heartCx, v.heartCy, v.heartScale, themeIdx, opacityMult);
   }
