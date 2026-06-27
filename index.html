@@ -590,6 +590,8 @@ let stage5CurrentThemeIdx = 0;
 const STAGE5_ROSE_THEME_IDX = 3;
 /** 「嘘をついても　花のように美しい」の場面のみ ♡ → 四つ葉 */
 const STAGE5_CLOVER_THEME_IDX = 1;
+/** 「乾いても、また咲かせられる」の場面のみ ♡ → フェニックス星座 */
+const STAGE5_PHOENIX_THEME_IDX = 4;
 /** 「焦らなくてもだいじょうぶ」の場面のみ ♡ → ぼんやり浮かぶ緑の月 */
 const STAGE5_MOON_THEME_IDX = 5;
 const STAGE5_MOON_SIZE_MULT = 0.72;
@@ -1244,6 +1246,7 @@ function drawStage5RoseFill(cx, cy, scale, opacityMult = 1) {
 function stage5SkipsHeartStroke(themeIdx) {
   return (
     themeIdx === STAGE5_CLOVER_THEME_IDX ||
+    themeIdx === STAGE5_PHOENIX_THEME_IDX ||
     themeIdx === STAGE5_ROSE_THEME_IDX ||
     themeIdx === STAGE5_MOON_THEME_IDX
   );
@@ -1316,6 +1319,164 @@ function drawStage5CloverFill(cx, cy, scale, opacityMult = 1) {
   ctx.restore();
 }
 
+function drawStage5ConstellationDot(x, y, r, alpha) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(255, 240, 210, ${alpha * 0.55})`;
+  ctx.shadowColor = 'rgba(255, 225, 180, 0.35)';
+  ctx.shadowBlur = r * 4.5;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
+function drawStage5EightPointStar(x, y, outerR, innerR, alpha) {
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 - Math.PI / 2;
+    const aIn = a + Math.PI / 8;
+    const ox = x + Math.cos(a) * outerR;
+    const oy = y + Math.sin(a) * outerR;
+    const ix = x + Math.cos(aIn) * innerR;
+    const iy = y + Math.sin(aIn) * innerR;
+    if (i === 0) ctx.moveTo(ox, oy);
+    else ctx.lineTo(ox, oy);
+    ctx.lineTo(ix, iy);
+  }
+  ctx.closePath();
+  ctx.fillStyle = `rgba(255, 248, 225, ${alpha * 0.5})`;
+  ctx.shadowColor = 'rgba(255, 235, 190, 0.45)';
+  ctx.shadowBlur = outerR * 2.8;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
+function drawStage5PhoenixNebula(r) {
+  const neb = ctx.createRadialGradient(-r * 0.12, -r * 0.08, r * 0.05, 0, r * 0.06, r * 0.98);
+  neb.addColorStop(0, 'rgba(55, 95, 195, 0.2)');
+  neb.addColorStop(0.28, 'rgba(95, 55, 165, 0.15)');
+  neb.addColorStop(0.52, 'rgba(140, 45, 120, 0.1)');
+  neb.addColorStop(0.72, 'rgba(195, 75, 55, 0.14)');
+  neb.addColorStop(1, 'rgba(120, 35, 45, 0.07)');
+  ctx.fillStyle = neb;
+  ctx.fillRect(-r, -r, r * 2, r * 2);
+
+  const glow = ctx.createRadialGradient(r * 0.35, r * 0.42, 0, r * 0.35, r * 0.42, r * 0.55);
+  glow.addColorStop(0, 'rgba(255, 120, 60, 0.09)');
+  glow.addColorStop(1, 'rgba(255, 80, 40, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(r * 0.35, r * 0.42, r * 0.55, 0, Math.PI * 2);
+  ctx.fill();
+
+  for (let i = 0; i < 28; i++) {
+    const a = (i * 2.399963) % (Math.PI * 2);
+    const d = r * (0.12 + (i % 7) * 0.11);
+    drawStage5ConstellationDot(
+      Math.cos(a) * d,
+      Math.sin(a) * d,
+      r * (0.006 + (i % 5) * 0.002),
+      0.12 + (i % 4) * 0.04
+    );
+  }
+}
+
+function drawStage5PhoenixConstellationFill(cx, cy, scale, opacityMult = 1) {
+  const s = scale * STAGE5_HEART_SIZE_MULT;
+  const ringR = s * 14.2;
+
+  ctx.save();
+  ctx.translate(cx, cy - scale * 1.35);
+  ctx.globalAlpha = opacityMult * 0.62;
+
+  ctx.beginPath();
+  ctx.arc(0, 0, ringR, 0, Math.PI * 2);
+  ctx.clip();
+  drawStage5PhoenixNebula(ringR);
+
+  ctx.beginPath();
+  ctx.arc(0, 0, ringR, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(225, 200, 120, 0.16)';
+  ctx.lineWidth = s * 0.14;
+  ctx.shadowColor = 'rgba(255, 220, 150, 0.22)';
+  ctx.shadowBlur = s * 3.4;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  const nestY = -ringR * 0.86;
+  const twigs = [
+    [-s * 2.8, nestY + s * 0.55, 0, nestY - s * 0.95, s * 2.8, nestY + s * 0.55],
+    [-s * 2.1, nestY + s * 0.35, -s * 0.5, nestY - s * 0.75, s * 0.4, nestY + s * 0.2],
+    [s * 2.1, nestY + s * 0.35, s * 0.5, nestY - s * 0.75, -s * 0.4, nestY + s * 0.2],
+    [-s * 1.4, nestY + s * 0.15, -s * 0.2, nestY - s * 0.55, s * 1.4, nestY + s * 0.15]
+  ];
+  ctx.strokeStyle = 'rgba(255, 210, 130, 0.22)';
+  ctx.lineWidth = s * 0.12;
+  ctx.lineCap = 'round';
+  ctx.shadowColor = 'rgba(255, 210, 140, 0.2)';
+  ctx.shadowBlur = s * 1.6;
+  twigs.forEach(([x1, y1, cx2, cy2, x2, y2]) => {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.quadraticCurveTo(cx2, cy2, x2, y2);
+    ctx.stroke();
+  });
+  ctx.shadowBlur = 0;
+  drawStage5ConstellationDot(-s * 1.1, nestY - s * 0.22, s * 0.3, 0.75);
+  drawStage5ConstellationDot(0, nestY - s * 0.48, s * 0.42, 0.95);
+  drawStage5ConstellationDot(s * 1.1, nestY - s * 0.22, s * 0.3, 0.75);
+  drawStage5ConstellationDot(-s * 0.55, nestY - s * 0.62, s * 0.22, 0.6);
+  drawStage5ConstellationDot(s * 0.55, nestY - s * 0.62, s * 0.22, 0.6);
+
+  const P = {
+    star: [0, -ringR * 0.58],
+    head: [0, -ringR * 0.44],
+    neck: [0, -ringR * 0.28],
+    chest: [0, -ringR * 0.06],
+    body: [0, ringR * 0.14],
+    tail: [0, ringR * 0.74],
+    tailL: [-ringR * 0.24, ringR * 0.62],
+    tailR: [ringR * 0.24, ringR * 0.62],
+    tailLL: [-ringR * 0.14, ringR * 0.52],
+    tailRR: [ringR * 0.14, ringR * 0.52],
+    wElbowL: [-ringR * 0.38, -ringR * 0.02],
+    wTipL: [-ringR * 0.82, ringR * 0.04],
+    wFeatherL: [-ringR * 0.68, -ringR * 0.14],
+    wElbowR: [ringR * 0.38, -ringR * 0.02],
+    wTipR: [ringR * 0.82, ringR * 0.04],
+    wFeatherR: [ringR * 0.68, -ringR * 0.14],
+    crestL: [-s * 1.1, -ringR * 0.5],
+    crestR: [s * 1.1, -ringR * 0.5]
+  };
+  const lines = [
+    ['tail', 'body'], ['body', 'chest'], ['chest', 'neck'], ['neck', 'head'], ['head', 'star'],
+    ['chest', 'wElbowL'], ['wElbowL', 'wTipL'], ['wTipL', 'wFeatherL'], ['wFeatherL', 'chest'],
+    ['chest', 'wElbowR'], ['wElbowR', 'wTipR'], ['wTipR', 'wFeatherR'], ['wFeatherR', 'chest'],
+    ['body', 'tailL'], ['body', 'tailR'], ['tailL', 'tailLL'], ['tailR', 'tailRR'],
+    ['head', 'crestL'], ['head', 'crestR']
+  ];
+
+  ctx.strokeStyle = 'rgba(255, 208, 125, 0.26)';
+  ctx.lineWidth = s * 0.18;
+  ctx.lineJoin = 'round';
+  ctx.shadowColor = 'rgba(255, 200, 120, 0.22)';
+  ctx.shadowBlur = s * 2.8;
+  lines.forEach(([a, b]) => {
+    ctx.beginPath();
+    ctx.moveTo(P[a][0], P[a][1]);
+    ctx.lineTo(P[b][0], P[b][1]);
+    ctx.stroke();
+  });
+  ctx.shadowBlur = 0;
+
+  Object.entries(P).forEach(([key, [x, y]]) => {
+    if (key === 'star') return;
+    drawStage5ConstellationDot(x, y, s * 0.34, 0.82);
+  });
+  drawStage5EightPointStar(P.star[0], P.star[1], s * 0.95, s * 0.38, 0.72);
+
+  ctx.restore();
+}
+
 function drawStage5GreenMoonFill(cx, cy, scale, opacityMult = 1) {
   const now = performance.now();
   const floatY = Math.sin(now * 0.00112) * scale * 1.7;
@@ -1358,6 +1519,8 @@ function drawStage5BackgroundShape(v, themeIdx, opacityMult) {
     drawStage5RoseFill(v.heartCx, v.heartCy, v.heartScale / STAGE5_HEART_SIZE_MULT, opacityMult);
   } else if (themeIdx === STAGE5_CLOVER_THEME_IDX) {
     drawStage5CloverFill(v.heartCx, v.heartCy, v.heartScale, opacityMult);
+  } else if (themeIdx === STAGE5_PHOENIX_THEME_IDX) {
+    drawStage5PhoenixConstellationFill(v.heartCx, v.heartCy, v.heartScale, opacityMult);
   } else if (themeIdx === STAGE5_MOON_THEME_IDX) {
     drawStage5GreenMoonFill(v.heartCx, v.heartCy, v.heartScale, opacityMult);
   } else {
