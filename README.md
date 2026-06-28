@@ -13,7 +13,7 @@
 ログイン　テキスト入力なしのアプリです。
 5章の物語　　画面下をtapしていただくと物語が進みます。
 
-体験→https://wisteria310.vercel.app
+体験→https://wisteria-mederu.vercel.app
 
 
 ![ScreenShot2](スクリーンショット%202026-04-01%20204757.png)
