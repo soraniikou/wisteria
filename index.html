@@ -610,6 +610,7 @@ const STAGE5_ROSE_THEME_IDX = 3;
 const STAGE5_CLOVER_THEME_IDX = 1;
 /** 「乾いても、また咲かせられる」の場面のみ ♡ → フェニックス星座 */
 const STAGE5_PHOENIX_THEME_IDX = 4;
+const STAGE5_PHOENIX_ROTATE_MS = 20000;
 /** 「応えてくれる人、それは私自身」の場面のみ ♡ → プリズムと分光 */
 const STAGE5_PRISM_THEME_IDX = 2;
 /** 「焦らなくてもだいじょうぶ」の場面のみ ♡ → ぼんやり浮かぶ緑の月 */
@@ -1439,10 +1440,14 @@ function drawStage5PhoenixConstellationFill(cx, cy, scale, opacityMult = 1) {
   ctx.translate(cx, cy - scale * 1.35);
   ctx.globalAlpha = opacityMult * 0.62;
 
+  ctx.save();
   ctx.beginPath();
   ctx.arc(0, 0, ringR, 0, Math.PI * 2);
   ctx.clip();
+  const phoenixRot = (performance.now() / STAGE5_PHOENIX_ROTATE_MS) * Math.PI * 2;
+  ctx.rotate(phoenixRot);
   drawStage5PhoenixNebula(ringR);
+  ctx.restore();
 
   ctx.beginPath();
   ctx.arc(0, 0, ringR, 0, Math.PI * 2);
