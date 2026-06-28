@@ -259,6 +259,24 @@
     margin-right: auto;
   }
 
+  @media (max-width: 768px) {
+    .s4-truth-typewriter.s4-leave-mobile {
+      white-space: pre-line;
+      font-size: clamp(0.74rem, 3.2vw, 0.88rem);
+      letter-spacing: 0.02em;
+      line-height: 2.05;
+      max-width: 96vw;
+      padding-left: 0.35rem;
+      padding-right: 0.35rem;
+    }
+    .s4-truth-typewriter.s4-leave-mobile .s4-leave-line2 {
+      display: block;
+      white-space: nowrap;
+      font-size: clamp(0.68rem, 2.85vw, 0.82rem);
+      letter-spacing: 0.01em;
+    }
+  }
+
   /* Stage 5 main text accents */
   .s5 .main-text { padding-top: 0.25rem; }
   .s5-text-pink {
@@ -607,6 +625,36 @@ let stage4TypeTimer = null;
 const STAGE4_TYPEWRITER_TEXT =
   '巻き付いてた執着は　あなたではなく　愛されたかった私自身だったかもしれない';
 const STAGE4_TYPEWRITER_TEXT_STAY = '愛してるのは相手？愛されたいだけ？';
+const STAGE4_LEAVE_LINE1 = '巻き付いてた執着は　あなたではなく';
+const STAGE4_LEAVE_LINE2 = '愛されたかった私自身だったかもしれない';
+
+function isMobileLayout() {
+  return window.matchMedia('(max-width: 768px)').matches;
+}
+
+function getStage4LeaveTypeLength() {
+  return isMobileLayout()
+    ? STAGE4_LEAVE_LINE1.length + 1 + STAGE4_LEAVE_LINE2.length
+    : STAGE4_TYPEWRITER_TEXT.length;
+}
+
+function renderStage4LeaveTypewriter(truthBox, charCount) {
+  if (charCount <= STAGE4_LEAVE_LINE1.length) {
+    truthBox.textContent = STAGE4_LEAVE_LINE1.slice(0, charCount);
+    return;
+  }
+  const line2Count = Math.min(
+    STAGE4_LEAVE_LINE2.length,
+    charCount - STAGE4_LEAVE_LINE1.length - 1
+  );
+  if (line2Count <= 0) {
+    truthBox.textContent = STAGE4_LEAVE_LINE1;
+    return;
+  }
+  truthBox.innerHTML =
+    STAGE4_LEAVE_LINE1 + '\n<span class="s4-leave-line2">' +
+    STAGE4_LEAVE_LINE2.slice(0, line2Count) + '</span>';
+}
 
 function rgbLerp(a, b, t) {
   return {
@@ -1967,6 +2015,12 @@ function goToStage(n) {
     setTimeout(() => truthBox.classList.add('visible'), 150);
     const stage4TypeText =
       choice === 'stay' ? STAGE4_TYPEWRITER_TEXT_STAY : STAGE4_TYPEWRITER_TEXT;
+    if (choice !== 'stay' && isMobileLayout()) {
+      truthBox.classList.add('s4-leave-mobile');
+    }
+    const stage4TypeLen = choice === 'stay'
+      ? stage4TypeText.length
+      : getStage4LeaveTypeLength();
     let ti = 0;
     stage4TypeTimer = setInterval(() => {
       if (currentStage !== 4) {
@@ -1975,8 +2029,14 @@ function goToStage(n) {
         return;
       }
       ti++;
-      truthBox.textContent = stage4TypeText.slice(0, ti);
-      if (ti >= stage4TypeText.length) {
+      if (choice === 'stay') {
+        truthBox.textContent = stage4TypeText.slice(0, ti);
+      } else if (isMobileLayout()) {
+        renderStage4LeaveTypewriter(truthBox, ti);
+      } else {
+        truthBox.textContent = stage4TypeText.slice(0, ti);
+      }
+      if (ti >= stage4TypeLen) {
         clearInterval(stage4TypeTimer);
         stage4TypeTimer = null;
       }
